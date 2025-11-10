@@ -1,7 +1,7 @@
 # GhostKey
 
 <p align="center">
-  <img src="Media.xcassets/AppIcon.appiconset/GhostKey-128-rounded.png" alt="GhostKey Logo" width="128" height="128">
+  <img src="Media.xcassets/AppIcon.appiconset/GhostKey-128.png" alt="GhostKey Logo" width="128" height="128">
 </p>
 
 A lightweight macOS menu bar app for quickly pasting authentication codes with a global hotkey. Perfect for managing 2FA codes, one-time passwords, or any sequential codes you need to paste frequently.
@@ -43,7 +43,20 @@ Choose either:
 - **DMG** (recommended): Drag and drop to Applications
 - **ZIP**: Extract and move to Applications
 
-> **Note**: This app is not code-signed. On first launch, right-click and select "Open" to bypass Gatekeeper.
+#### ⚠️ Important: First Launch
+
+This app is **not code-signed or notarized**. macOS Gatekeeper will block it by default.
+
+**Required step to open the app**:
+
+Open Terminal and run:
+```bash
+xattr -d com.apple.quarantine /Applications/GhostKey.app
+```
+
+Then double-click GhostKey.app to open it normally.
+
+> **What this does**: Removes the quarantine flag macOS adds to downloaded apps. You only need to do this once.
 
 ### Requirements
 - macOS 12.0 (Monterey) or later
