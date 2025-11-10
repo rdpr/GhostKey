@@ -15,8 +15,8 @@ enum Preferences {
         defaults.register(defaults: [
             "codesPath": AppPaths.appSupportDir.appendingPathComponent("codes.txt").path,
             "indexPath": AppPaths.appSupportDir.appendingPathComponent("index.json").path,
-            "yellowThreshold": 100,
-            "orangeThreshold": 40,
+            "yellowThreshold": 40,
+            "orangeThreshold": 20,
             "redThreshold": 10,
             "hotkeyKeyCode": 16, // Y key
             "hotkeyModifiers": 7424, // Ctrl+Option+Cmd (controlKey | optionKey | cmdKey)

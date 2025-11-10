@@ -99,10 +99,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hasLaunchedKey = "HasLaunchedBefore"
         let hasLaunched = UserDefaults.standard.bool(forKey: hasLaunchedKey)
         
-        if !hasLaunched {
-            // First launch - register as login item by default
-            try? SMAppService.mainApp.register()
-            UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+        NSLog("=== Login Item Setup ===")
+        NSLog("First launch: \(!hasLaunched)")
+        NSLog("App path: \(Bundle.main.bundlePath)")
+        
+        // Check current status first
+        do {
+            let currentStatus = try SMAppService.mainApp.status
+            NSLog("Current SMAppService status: \(currentStatus.rawValue)")
+            
+            if !hasLaunched {
+                // First launch - register as login item by default
+                NSLog("Attempting to register as login item...")
+                
+                if currentStatus == .notRegistered {
+                    try SMAppService.mainApp.register()
+                    let newStatus = try SMAppService.mainApp.status
+                    NSLog("Registration complete. New status: \(newStatus.rawValue)")
+                    
+                    if newStatus == .enabled {
+                        NSLog("✅ Successfully registered as login item")
+                    } else {
+                        NSLog("⚠️ Registration returned success but status is: \(newStatus.rawValue)")
+                    }
+                } else {
+                    NSLog("Already registered with status: \(currentStatus.rawValue)")
+                }
+                
+                UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+            } else {
+                NSLog("Not first launch. Current status: \(currentStatus.rawValue)")
+            }
+        } catch {
+            NSLog("❌ SMAppService error: \(error)")
+            NSLog("Error details: \(error.localizedDescription)")
+            
+            // Mark as launched even if registration fails
+            if !hasLaunched {
+                UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+            }
         }
+        
+        NSLog("======================")
     }
 }
