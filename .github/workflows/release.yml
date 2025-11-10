@@ -1,0 +1,233 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Read version
+      id: version
+      run: |
+        VERSION=$(cat VERSION | tr -d '[:space:]')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "📦 Building version $VERSION"
+    
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "⚠️  Tag v${{ steps.version.outputs.version }} already exists"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "✅ Tag v${{ steps.version.outputs.version }} is new"
+        fi
+    
+    - name: Skip if tag exists
+      if: steps.check_tag.outputs.exists == 'true'
+      run: |
+        echo "::warning::Version v${{ steps.version.outputs.version }} already released. Update VERSION file to create a new release."
+        exit 0
+    
+    - name: Setup Xcode
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    
+    - name: Build app
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔨 Building GhostKey..."
+        xcodebuild clean build \
+          -project GhostKey.xcodeproj \
+          -scheme GhostKey \
+          -configuration Release \
+          -derivedDataPath ./build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+        
+        echo "✅ Build complete"
+    
+    - name: Prepare app bundle
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📦 Preparing app bundle..."
+        
+        # Find the built app
+        APP_PATH=$(find ./build -name "GhostKey.app" -type d | head -n 1)
+        
+        if [ -z "$APP_PATH" ]; then
+          echo "❌ GhostKey.app not found"
+          exit 1
+        fi
+        
+        echo "Found app at: $APP_PATH"
+        
+        # Create distribution directory
+        mkdir -p ./dist
+        
+        # Copy app to distribution directory
+        cp -R "$APP_PATH" ./dist/GhostKey.app
+        
+        echo "✅ App bundle prepared"
+    
+    - name: Create ZIP archive
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📦 Creating ZIP archive..."
+        cd ./dist
+        zip -r -y "../GhostKey-${{ steps.version.outputs.version }}.zip" GhostKey.app
+        cd ..
+        echo "✅ ZIP created: GhostKey-${{ steps.version.outputs.version }}.zip"
+    
+    - name: Install create-dmg
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📥 Installing create-dmg..."
+        brew install create-dmg
+    
+    - name: Create DMG
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📦 Creating DMG..."
+        
+        # Create DMG with nice window and background
+        create-dmg \
+          --volname "GhostKey" \
+          --volicon "./Media.xcassets/AppIcon.appiconset/GhostKey-512.png" \
+          --window-pos 200 120 \
+          --window-size 600 400 \
+          --icon-size 100 \
+          --icon "GhostKey.app" 175 190 \
+          --hide-extension "GhostKey.app" \
+          --app-drop-link 425 190 \
+          --no-internet-enable \
+          "GhostKey-${{ steps.version.outputs.version }}.dmg" \
+          "./dist/GhostKey.app" || true
+        
+        # Fallback: If create-dmg fails, create a simple DMG
+        if [ ! -f "GhostKey-${{ steps.version.outputs.version }}.dmg" ]; then
+          echo "⚠️  create-dmg failed, creating simple DMG..."
+          hdiutil create -volname "GhostKey" \
+            -srcfolder "./dist/GhostKey.app" \
+            -ov -format UDZO \
+            "GhostKey-${{ steps.version.outputs.version }}.dmg"
+        fi
+        
+        echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
+    
+    - name: Generate checksums
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔐 Generating checksums..."
+        shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.zip" > "GhostKey-${{ steps.version.outputs.version }}.zip.sha256"
+        shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.dmg" > "GhostKey-${{ steps.version.outputs.version }}.dmg.sha256"
+        
+        echo "📋 Checksums:"
+        cat "GhostKey-${{ steps.version.outputs.version }}.zip.sha256"
+        cat "GhostKey-${{ steps.version.outputs.version }}.dmg.sha256"
+    
+    - name: Create release notes
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📝 Generating release notes..."
+        
+        cat > release_notes.md << 'EOF'
+        ## GhostKey v${{ steps.version.outputs.version }}
+        
+        ### 📦 Installation
+        
+        Choose one of the following:
+        
+        1. **DMG (Recommended)**: Download `GhostKey-${{ steps.version.outputs.version }}.dmg`, open it, and drag GhostKey to your Applications folder
+        2. **ZIP**: Download `GhostKey-${{ steps.version.outputs.version }}.zip`, extract it, and move GhostKey.app to your Applications folder
+        
+        ### 🔒 Security
+        
+        This build is **not code-signed**. On first launch:
+        1. Right-click (or Control-click) on GhostKey.app
+        2. Select "Open" from the menu
+        3. Click "Open" in the dialog that appears
+        
+        Alternatively, you can build from source following the [README](https://github.com/rdpr/ghostkey#building-from-source).
+        
+        ### ✅ Checksums
+        
+        Verify your download:
+        
+        ```
+        $(cat GhostKey-${{ steps.version.outputs.version }}.zip.sha256)
+        $(cat GhostKey-${{ steps.version.outputs.version }}.dmg.sha256)
+        ```
+        
+        ### 📋 What's New
+        
+        See [CHANGELOG.md](https://github.com/rdpr/ghostkey/blob/main/CHANGELOG.md) for detailed changes.
+        
+        ---
+        
+        **Requirements**: macOS 12.0 (Monterey) or later
+        
+        **Permissions**: Accessibility access required for typing codes (you'll be prompted on first use)
+        EOF
+        
+        echo "✅ Release notes generated"
+    
+    - name: Create Git tag
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🏷️  Creating tag v${{ steps.version.outputs.version }}..."
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+        git push origin "v${{ steps.version.outputs.version }}"
+        echo "✅ Tag created and pushed"
+    
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: GhostKey v${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        files: |
+          GhostKey-${{ steps.version.outputs.version }}.zip
+          GhostKey-${{ steps.version.outputs.version }}.zip.sha256
+          GhostKey-${{ steps.version.outputs.version }}.dmg
+          GhostKey-${{ steps.version.outputs.version }}.dmg.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Release summary
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- \`GhostKey-${{ steps.version.outputs.version }}.dmg\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`GhostKey-${{ steps.version.outputs.version }}.zip\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Release Page](https://github.com/rdpr/ghostkey/releases/tag/v${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [All Releases](https://github.com/rdpr/ghostkey/releases)" >> $GITHUB_STEP_SUMMARY
+

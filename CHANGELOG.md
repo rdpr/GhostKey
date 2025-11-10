@@ -5,7 +5,13 @@ All notable changes to GhostKey will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Note**: Version numbers are stored in the `VERSION` file. Update that file to trigger a new release.
+
 ## [Unreleased]
+
+<!-- Add unreleased changes here -->
+
+## [1.0.0] - 2025-11-10
 
 ### Added
 - Initial release of GhostKey
@@ -43,8 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Carbon framework for global hotkey registration
 - ServiceManagement for login item control
 
-## [1.0.0] - TBD
-
 ### Initial Release
 - First stable release of GhostKey
+- All core features implemented and tested
 

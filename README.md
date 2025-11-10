@@ -35,6 +35,16 @@ A lightweight macOS menu bar app for quickly pasting authentication codes with a
 
 ## Installation
 
+### Download
+
+**Latest Release**: [Download from GitHub Releases](https://github.com/rdpr/ghostkey/releases/latest)
+
+Choose either:
+- **DMG** (recommended): Drag and drop to Applications
+- **ZIP**: Extract and move to Applications
+
+> **Note**: This app is not code-signed. On first launch, right-click and select "Open" to bypass Gatekeeper.
+
 ### Requirements
 - macOS 12.0 (Monterey) or later
 - Accessibility permissions (required for typing codes)
