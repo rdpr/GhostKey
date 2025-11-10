@@ -52,8 +52,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Register hotkey from preferences
         let hk = Preferences.hotkey
-        hotkey = GlobalHotKey(keyCode: hk.keyCode, modifiers: hk.modifiers) { [weak self] in
-            self?.pasteNextCode()
+        NSLog("Registering hotkey: keyCode=\(hk.keyCode), modifiers=\(hk.modifiers)")
+        
+        // Validate hotkey settings
+        if hk.keyCode == 0 || hk.modifiers == 0 {
+            NSLog("⚠️ Invalid hotkey settings detected, using defaults")
+            // Use default values: Control + Option + Cmd + Y
+            let defaultModifiers: UInt32 = 4096 + 2048 + 256 // controlKey | optionKey | cmdKey
+            hotkey = GlobalHotKey(keyCode: 16, modifiers: defaultModifiers) { [weak self] in
+                self?.pasteNextCode()
+            }
+        } else {
+            hotkey = GlobalHotKey(keyCode: hk.keyCode, modifiers: hk.modifiers) { [weak self] in
+                self?.pasteNextCode()
+            }
         }
         hotkey?.register()
 

@@ -12,6 +12,10 @@ enum Preferences {
     private static let defaults = UserDefaults.standard
 
     static func registerDefaults() {
+        // Calculate correct modifier flags for Carbon hotkeys
+        // Control (4096) + Option (2048) + Cmd (256) = 6400
+        let defaultModifiers: UInt32 = 4096 + 2048 + 256 // controlKey | optionKey | cmdKey
+        
         defaults.register(defaults: [
             "codesPath": AppPaths.appSupportDir.appendingPathComponent("codes.txt").path,
             "indexPath": AppPaths.appSupportDir.appendingPathComponent("index.json").path,
@@ -19,9 +23,11 @@ enum Preferences {
             "orangeThreshold": 20,
             "redThreshold": 10,
             "hotkeyKeyCode": 16, // Y key
-            "hotkeyModifiers": 7424, // Ctrl+Option+Cmd (controlKey | optionKey | cmdKey)
+            "hotkeyModifiers": Int(defaultModifiers), // 6400 = Ctrl+Option+Cmd
             "pressReturnAfterPaste": true
         ])
+        
+        NSLog("📝 Registered defaults - hotkey: keyCode=16, modifiers=\(defaultModifiers)")
     }
 
     static var codesURL: URL {
@@ -42,7 +48,10 @@ return AppPaths.appSupportDir.appendingPathComponent("index.json")
     }
     
     static var hotkey: (keyCode: UInt32, modifiers: UInt32) {
-        (UInt32(defaults.integer(forKey: "hotkeyKeyCode")), UInt32(defaults.integer(forKey: "hotkeyModifiers")))
+        let keyCode = UInt32(defaults.integer(forKey: "hotkeyKeyCode"))
+        let modifiers = UInt32(defaults.integer(forKey: "hotkeyModifiers"))
+        NSLog("🔍 Reading hotkey from preferences: keyCode=\(keyCode), modifiers=\(modifiers)")
+        return (keyCode, modifiers)
     }
     
     static var pressReturnAfterPaste: Bool {

@@ -17,6 +17,9 @@ final class GlobalHotKey {
     func register() {
         unregister()
         
+        NSLog("🔑 Registering hotkey: keyCode=\(keyCode), modifiers=\(modifiers)")
+        NSLog("   Display: \(GlobalHotKey.displayString(keyCode: keyCode, modifiers: modifiers))")
+        
         var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
         let callback: EventHandlerUPP = { _, _, userData in
             let mySelf = Unmanaged<GlobalHotKey>.fromOpaque(userData!).takeUnretainedValue()
@@ -24,10 +27,24 @@ final class GlobalHotKey {
             return noErr
         }
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), callback, 1, &eventSpec, selfPtr, &eventHandler)
-
+        
+        let eventStatus = InstallEventHandler(GetApplicationEventTarget(), callback, 1, &eventSpec, selfPtr, &eventHandler)
+        if eventStatus != noErr {
+            NSLog("❌ Failed to install event handler: \(eventStatus)")
+            return
+        }
+        
         let id = EventHotKeyID(signature: OSType(0x79636465), id: 1) // 'ycde'
-        RegisterEventHotKey(keyCode, modifiers, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let registerStatus = RegisterEventHotKey(keyCode, modifiers, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        
+        if registerStatus != noErr {
+            NSLog("❌ Failed to register hotkey: \(registerStatus)")
+            if registerStatus == -9878 { // eventHotKeyExistsErr
+                NSLog("   Error: Hotkey already registered by another app")
+            }
+        } else {
+            NSLog("✅ Hotkey registered successfully")
+        }
     }
     
     func unregister() {

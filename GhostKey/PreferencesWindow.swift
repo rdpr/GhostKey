@@ -50,8 +50,8 @@ struct PreferencesView: View {
                         onCommit: saveHotkey
                     )
                     Button("Reset") {
-                        hotkeyKeyCode = 16 // Y
-                        hotkeyModifiers = 7424 // Ctrl+Option+Cmd
+                        hotkeyKeyCode = 16 // Y key
+                        hotkeyModifiers = 6400 // Ctrl+Option+Cmd (4096 + 2048 + 256)
                         saveHotkey()
                     }
                     .buttonStyle(.borderless)

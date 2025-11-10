@@ -131,8 +131,8 @@ Then double-click GhostKey.app to open it normally.
 - Default location: `~/Library/Application Support/GhostKey/`
 
 ### Thresholds
-- **🟡 Yellow**: Show yellow indicator when codes ≤ this number (default: 100)
-- **🟠 Orange**: Show orange indicator when codes ≤ this number (default: 40)
+- **🟡 Yellow**: Show yellow indicator when codes ≤ this number (default: 40)
+- **🟠 Orange**: Show orange indicator when codes ≤ this number (default: 20)
 - **🔴 Red**: Show red indicator when codes ≤ this number (default: 10)
 
 ### Hotkey
