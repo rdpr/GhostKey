@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Add unreleased changes here -->
 
-## [1.0.0-alpha.1] - 2025-11-11
+## [1.0.0-beta] - 2025-11-11
 
 ### 🎯 Breaking Changes
 - **Removed index tracking system**: Codes are now deleted from `codes.txt` when used
