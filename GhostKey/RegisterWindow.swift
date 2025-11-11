@@ -57,8 +57,9 @@ struct ManageCodesView: View {
                 let remaining = codes.count
                 let band = ColorBand.from(remaining: remaining)
                 
-                Text(band.emoji)
-                    .font(.system(size: 32))
+                Image(band.imageName)
+                    .resizable()
+                    .frame(width: 32, height: 32)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(remaining) codes remaining")
@@ -76,10 +77,10 @@ struct ManageCodesView: View {
             
             // Threshold info
             HStack(spacing: 16) {
-                thresholdBadge(emoji: "🟢", label: ">\(thresholds.yellow)")
-                thresholdBadge(emoji: "🟡", label: "≤\(thresholds.yellow)")
-                thresholdBadge(emoji: "🟠", label: "≤\(thresholds.orange)")
-                thresholdBadge(emoji: "🔴", label: "≤\(thresholds.red)")
+                thresholdBadge(imageName: "GreenGhost", label: ">\(thresholds.yellow)")
+                thresholdBadge(imageName: "YellowGhost", label: "≤\(thresholds.yellow)")
+                thresholdBadge(imageName: "OrangeGhost", label: "≤\(thresholds.orange)")
+                thresholdBadge(imageName: "RedGhost", label: "≤\(thresholds.red)")
             }
             .font(.system(size: 11))
             .foregroundColor(.secondary)
@@ -89,9 +90,11 @@ struct ManageCodesView: View {
         .background(Color(NSColor.controlBackgroundColor))
     }
     
-    private func thresholdBadge(emoji: String, label: String) -> some View {
+    private func thresholdBadge(imageName: String, label: String) -> some View {
         HStack(spacing: 4) {
-            Text(emoji)
+            Image(imageName)
+                .resizable()
+                .frame(width: 12, height: 12)
             Text(label)
         }
     }
@@ -334,7 +337,7 @@ enum ManageCodesWindow {
             let hosting = NSHostingView(rootView: ManageCodesView())
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
-                styleMask: [.titled, .closable, .resizable],
+                styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
             )
@@ -342,7 +345,6 @@ enum ManageCodesWindow {
             w.title = "GhostKey"
             w.isReleasedWhenClosed = false
             w.contentView = hosting
-            w.minSize = NSSize(width: 500, height: 480)
             
             // Set up delegate to handle window close
             windowDelegate = ManageCodesWindowDelegate()

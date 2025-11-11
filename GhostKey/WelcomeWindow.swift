@@ -30,13 +30,14 @@ struct WelcomeView: View {
         ),
         WelcomeStep(
             title: "Understanding the Counter",
-            emoji: "🟢",
+            emoji: nil,
+            imageName: "GreenGhost",
             description: "The menu bar icon shows how many codes remain:",
             details: [
-                "🟢 Green: Plenty of codes available",
-                "🟡 Yellow: Getting low (≤40)",
-                "🟠 Orange: Running out (≤20)",
-                "🔴 Red: Critical - add more! (≤10)"
+                WelcomeDetailItem(icon: .image("GreenGhost"), text: "Plenty of codes available"),
+                WelcomeDetailItem(icon: .image("YellowGhost"), text: "Getting low (default: ≤40)"),
+                WelcomeDetailItem(icon: .image("OrangeGhost"), text: "Running out (default: ≤20)"),
+                WelcomeDetailItem(icon: .image("RedGhost"), text: "Critical - add more! (default: ≤10)")
             ]
         ),
         WelcomeStep(
@@ -68,8 +69,12 @@ struct WelcomeView: View {
                 
                 // Content
                 VStack(spacing: 16) {
-                    // Show app icon for first step, emoji for others
-                    if let emoji = steps[currentStep].emoji {
+                    // Show app icon, image asset, or emoji
+                    if let imageName = steps[currentStep].imageName {
+                        Image(imageName)
+                            .resizable()
+                            .frame(width: 64, height: 64)
+                    } else if let emoji = steps[currentStep].emoji {
                         Text(emoji)
                             .font(.system(size: 64))
                     } else if let appIcon = NSImage(named: "AppIcon") {
@@ -88,12 +93,19 @@ struct WelcomeView: View {
                         .padding(.horizontal, 40)
                     
                     VStack(alignment: .leading, spacing: 10) {
-                        ForEach(steps[currentStep].details, id: \.self) { detail in
+                        ForEach(Array(steps[currentStep].details.enumerated()), id: \.offset) { index, detail in
                             HStack(alignment: .top, spacing: 10) {
-                                Text("•")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.accentColor)
-                                Text(detail)
+                                switch detail.icon {
+                                case .bullet:
+                                    Text("•")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.accentColor)
+                                case .image(let imageName):
+                                    Image(imageName)
+                                        .resizable()
+                                        .frame(width: 16, height: 16)
+                                }
+                                Text(detail.text)
                                     .font(.system(size: 13))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -154,11 +166,49 @@ struct WelcomeView: View {
     }
 }
 
+struct WelcomeDetailItem {
+    let icon: WelcomeIcon
+    let text: String
+    
+    enum WelcomeIcon {
+        case bullet
+        case image(String)
+    }
+}
+
 struct WelcomeStep {
     let title: String
     let emoji: String?
+    let imageName: String? // Optional image name for using assets instead of emoji
     let description: String
-    let details: [String]
+    let details: [WelcomeDetailItem]
+    
+    // Convenience init for simple text details (bullet points)
+    init(title: String, emoji: String?, description: String, details: [String]) {
+        self.title = title
+        self.emoji = emoji
+        self.imageName = nil
+        self.description = description
+        self.details = details.map { WelcomeDetailItem(icon: .bullet, text: $0) }
+    }
+    
+    // Init for image-based icon
+    init(title: String, imageName: String, description: String, details: [String]) {
+        self.title = title
+        self.emoji = nil
+        self.imageName = imageName
+        self.description = description
+        self.details = details.map { WelcomeDetailItem(icon: .bullet, text: $0) }
+    }
+    
+    // Full init with custom detail items
+    init(title: String, emoji: String?, imageName: String?, description: String, details: [WelcomeDetailItem]) {
+        self.title = title
+        self.emoji = emoji
+        self.imageName = imageName
+        self.description = description
+        self.details = details
+    }
 }
 
 enum WelcomeWindow {

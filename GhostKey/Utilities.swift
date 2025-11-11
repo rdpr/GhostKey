@@ -23,7 +23,8 @@ enum Preferences {
             "redThreshold": 10,
             "hotkeyKeyCode": 16, // Y key
             "hotkeyModifiers": Int(defaultModifiers), // 6400 = Ctrl+Option+Cmd
-            "pressReturnAfterPaste": true
+            "pressReturnAfterPaste": true,
+            "showCounterInMenuBar": false // Hide counter by default
         ])
         
         NSLog("📝 Registered defaults - hotkey: keyCode=16, modifiers=\(defaultModifiers)")
@@ -49,6 +50,10 @@ enum Preferences {
     
     static var pressReturnAfterPaste: Bool {
         defaults.bool(forKey: "pressReturnAfterPaste")
+    }
+    
+    static var showCounterInMenuBar: Bool {
+        defaults.bool(forKey: "showCounterInMenuBar")
     }
 }
 

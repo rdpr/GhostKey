@@ -11,16 +11,17 @@ struct PreferencesView: View {
     @State private var hotkeyModifiers = Preferences.hotkey.modifiers
     @State private var isRecordingHotkey = false
     @State private var pressReturnAfterPaste = Preferences.pressReturnAfterPaste
+    @State private var showCounterInMenuBar = Preferences.showCounterInMenuBar
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // Thresholds Section
                 sectionHeader("Thresholds")
-                VStack(spacing: 8) {
-                    thresholdRow(label: "🟡 Yellow at ≤", value: $yellow, onChange: saveThresholds)
-                    thresholdRow(label: "🟠 Orange at ≤", value: $orange, onChange: saveThresholds)
-                    thresholdRow(label: "🔴 Red at ≤", value: $red, onChange: saveThresholds)
+                VStack(alignment: .leading, spacing: 8) {
+                    thresholdRow(imageName: "YellowGhost", label: "at ≤", value: $yellow, onChange: saveThresholds)
+                    thresholdRow(imageName: "OrangeGhost", label: "at ≤", value: $orange, onChange: saveThresholds)
+                    thresholdRow(imageName: "RedGhost", label: "at ≤", value: $red, onChange: saveThresholds)
                 }
                 
                 Divider()
@@ -28,45 +29,57 @@ struct PreferencesView: View {
                 
                 // Hotkey Section
                 sectionHeader("Hotkey")
-                HStack {
-                    Text("Paste shortcut")
-                        .frame(width: 120, alignment: .trailing)
-                    HotkeyRecorder(
-                        keyCode: $hotkeyKeyCode,
-                        modifiers: $hotkeyModifiers,
-                        isRecording: $isRecordingHotkey,
-                        onCommit: saveHotkey
-                    )
-                    Button("Reset") {
-                        isRecordingHotkey = false // Ensure recording state is cleared
-                        hotkeyKeyCode = 16 // Y key
-                        hotkeyModifiers = 6400 // Ctrl+Option+Cmd (4096 + 2048 + 256)
-                        saveHotkey()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Text("Paste shortcut")
+                        HotkeyRecorder(
+                            keyCode: $hotkeyKeyCode,
+                            modifiers: $hotkeyModifiers,
+                            isRecording: $isRecordingHotkey,
+                            onCommit: saveHotkey
+                        )
+                        Button("Reset") {
+                            isRecordingHotkey = false // Ensure recording state is cleared
+                            hotkeyKeyCode = 16 // Y key
+                            hotkeyModifiers = 6400 // Ctrl+Option+Cmd (4096 + 2048 + 256)
+                            saveHotkey()
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .buttonStyle(.borderless)
+                    
+                    Toggle("Press Return after pasting", isOn: Binding(
+                        get: { pressReturnAfterPaste },
+                        set: { val in
+                            pressReturnAfterPaste = val
+                            UserDefaults.standard.set(val, forKey: "pressReturnAfterPaste")
+                        }
+                    ))
                 }
-                
-                Toggle("Press Return after pasting", isOn: Binding(
-                    get: { pressReturnAfterPaste },
-                    set: { val in
-                        pressReturnAfterPaste = val
-                        UserDefaults.standard.set(val, forKey: "pressReturnAfterPaste")
-                    }
-                ))
-                .padding(.leading, 120)
                 
                 Divider()
                     .padding(.vertical, 4)
                 
                 // General Section
                 sectionHeader("General")
-                Toggle("Launch at login", isOn: Binding(
-                    get: { launchAtLogin },
-                    set: { val in
-                        launchAtLogin = val
-                        try? (val ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister())
-                    }
-                ))
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Launch at login", isOn: Binding(
+                        get: { launchAtLogin },
+                        set: { val in
+                            launchAtLogin = val
+                            try? (val ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister())
+                        }
+                    ))
+                    
+                    Toggle("Show counter in menu bar", isOn: Binding(
+                        get: { showCounterInMenuBar },
+                        set: { val in
+                            showCounterInMenuBar = val
+                            UserDefaults.standard.set(val, forKey: "showCounterInMenuBar")
+                            // Trigger menu bar refresh
+                            NotificationCenter.default.post(name: .YCPreferencesSaved, object: nil)
+                        }
+                    ))
+                }
                 
             }
             .padding(20)
@@ -86,21 +99,21 @@ struct PreferencesView: View {
             .textCase(.uppercase)
     }
     
-    private func thresholdRow(label: String, value: Binding<Int>, onChange: @escaping () -> Void) -> some View {
-        HStack {
+    private func thresholdRow(imageName: String, label: String, value: Binding<Int>, onChange: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Image(imageName)
+                .resizable()
+                .frame(width: 14, height: 14)
             Text(label)
-                .frame(width: 120, alignment: .trailing)
-            HStack(spacing: 4) {
-                TextField("", value: value, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 60)
-                    .multilineTextAlignment(.trailing)
-                    .onChange(of: value.wrappedValue) { _ in
-                        onChange()
-                    }
-                Stepper("", value: value, in: 0...10_000, onEditingChanged: { _ in onChange() })
-                    .labelsHidden()
-            }
+            TextField("", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 60)
+                .multilineTextAlignment(.trailing)
+                .onChange(of: value.wrappedValue) { _ in
+                    onChange()
+                }
+            Stepper("", value: value, in: 0...10_000, onEditingChanged: { _ in onChange() })
+                .labelsHidden()
         }
     }
 
@@ -258,10 +271,9 @@ enum PreferencesWindow {
     static func show() {
         if window == nil {
             let hosting = NSHostingView(rootView: PreferencesView())
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 520), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 460), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.center(); w.title = "GhostKey Preferences"; w.isReleasedWhenClosed = false
             w.contentView = hosting
-            w.minSize = NSSize(width: 540, height: 460)
             window = w
         }
         window?.makeKeyAndOrderFront(nil)

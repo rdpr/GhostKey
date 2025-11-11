@@ -9,7 +9,7 @@ struct GhostKeyApp: App {
     var body: some Scene {
         Settings {
             PreferencesView()
-                .frame(minWidth: 520, minHeight: 420)
+                .frame(minWidth: 480, minHeight: 420)
         }
         // No main window; status bar only.
     }
@@ -47,11 +47,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         notifier.requestAuthIfNeeded()
         
-        // Show welcome window on first launch
-        if WelcomeWindow.shouldShow() {
-            // Delay slightly to ensure app is fully initialized
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // Show welcome window on first launch, manage codes window otherwise
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if WelcomeWindow.shouldShow() {
                 WelcomeWindow.show()
+            } else {
+                ManageCodesWindow.show()
             }
         }
 
@@ -169,5 +170,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         NSLog("======================")
+    }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // When dock icon is clicked, open the appropriate window
+        if WelcomeWindow.shouldShow() {
+            WelcomeWindow.show()
+        } else {
+            ManageCodesWindow.show()
+        }
+        return true
     }
 }
