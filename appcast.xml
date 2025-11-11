@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>GhostKey Updates</title>
+        <link>https://github.com/rdpr/GhostKey</link>
+        <description>Most recent updates to GhostKey</description>
+        <language>en</language>
+        <item>
+            <title>Version 1.0.0-beta</title>
+            <sparkle:version>1.0.0-beta</sparkle:version>
+            <sparkle:shortVersionString>1.0.0-beta</sparkle:shortVersionString>
+            <link>https://github.com/rdpr/GhostKey/releases/tag/v1.0.0-beta</link>
+            <sparkle:releaseNotesLink>https://github.com/rdpr/GhostKey/releases/tag/v1.0.0-beta</sparkle:releaseNotesLink>
+            <pubDate>Tue, 12 Nov 2025 00:00:00 +0000</pubDate>
+            <enclosure 
+                url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-beta/GhostKey.zip"
+                sparkle:version="1.0.0-beta"
+                sparkle:shortVersionString="1.0.0-beta"
+                type="application/octet-stream"
+                sparkle:edSignature="SIGNATURE_PLACEHOLDER"
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
+

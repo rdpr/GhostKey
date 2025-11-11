@@ -15,5 +15,13 @@
 	<string>NSApplication</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>GhostKey needs accessibility access to type authentication codes.</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/rdpr/GhostKey/main/appcast.xml</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

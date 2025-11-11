@@ -115,6 +115,12 @@ final class StatusBarController: NSObject {
         let welcomeItem = NSMenuItem(title: "Show Welcome Guide", action: #selector(onWelcome), keyEquivalent: "")
         welcomeItem.target = self
         menu.addItem(welcomeItem)
+        
+        menu.addItem(.separator())
+        
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(onCheckForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(onQuit), keyEquivalent: "q")
         quitItem.target = self
@@ -122,6 +128,10 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func onPaste() { pasteAction() }
+    
+    @objc private func onCheckForUpdates() {
+        UpdateManager.shared.checkForUpdates()
+    }
 
     @objc private func onManage() {
         ManageCodesWindow.show()

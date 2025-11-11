@@ -47,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         notifier.requestAuthIfNeeded()
         
+        // Initialize Sparkle updater
+        UpdateManager.shared.setup()
+        
         // Show welcome window on first launch, manage codes window otherwise
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             if WelcomeWindow.shouldShow() {
