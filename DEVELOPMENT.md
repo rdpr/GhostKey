@@ -33,12 +33,13 @@ rm -f ~/Library/Preferences/com.rdpr.GhostKey.plist 2>/dev/null && echo "✓ Del
 rm -rf ~/Library/Caches/com.rdpr.GhostKey 2>/dev/null
 
 # === Shared data ===
-rm -rf ~/Library/Application\ Support/GhostKey 2>/dev/null && echo "✓ Deleted Application Support"
+rm -rf ~/Library/Application\ Support/GhostKey 2>/dev/null && echo "✓ Deleted Application Support (codes.txt)"
 
 # Restart preferences daemon
 killall cfprefsd 2>/dev/null && echo "✓ Restarted preferences daemon"
 
 echo "✅ Complete reset done!"
+echo "Note: This will reset the Welcome Guide and delete all codes"
 ```
 
 ## Debugging
@@ -83,10 +84,28 @@ To test:
 5. Check System Settings → General → Login Items
 
 ### Notifications
-Notifications require explicit permission:
-- First launch prompts for permission
-- Check Console.app for authorization status
-- Verify in System Settings → Notifications
+Notifications require explicit permission and proper app registration:
+
+**Debug builds (from Xcode):**
+- Usually work immediately
+- Check Console for detailed logs
+
+**Release builds (DMG):**
+- May not appear in System Settings → Notifications (unsigned app limitation)
+- App needs to be in `/Applications` folder
+- Workaround: Restart Notification Center after first launch:
+  ```bash
+  killall NotificationCenter
+  ```
+- Check Console.app for logs starting with "🔔 Setting up notifications..."
+- Test notification sent on first authorization grant
+
+**To test:**
+1. Install DMG to `/Applications`
+2. Launch app
+3. Check Console.app for notification setup logs
+4. Look for bundle ID and authorization status
+5. Should see "✅ Notification authorization GRANTED" and test notification
 
 ### Hotkeys
 Hotkeys are stored in UserDefaults with fallback to defaults:
@@ -133,13 +152,96 @@ Quick version:
 ```
 GhostKeyApp.swift        - Entry point, lifecycle management
 ├── StatusBarController  - Menu bar UI and interactions
-├── CodeStore           - Code storage and index management
+├── CodeStore           - Code storage and consumption
 ├── FileWatcher         - Monitors files for changes
 ├── PasteManager        - Keyboard event synthesis
 ├── GlobalHotKey        - Hotkey registration
 ├── NotificationManager - System notifications
-└── PreferencesWindow   - Settings UI
+├── PreferencesWindow   - Settings UI
+├── ManageCodesWindow   - Main code management hub (shows in dock)
+└── WelcomeWindow       - First-launch tutorial (4-step guide)
 ```
+
+### Key Components
+
+**ManageCodesWindow** (formerly RegisterWindow):
+- Central hub for code management
+- Live counter with threshold badges
+- Auto-refreshing code list (1-second timer)
+- Interactive delete buttons
+- Real-time validation
+- Shows app in dock when open
+
+**WelcomeWindow**:
+- Multi-step onboarding flow
+- Shows on first launch
+- Can be reopened from menu
+- Leads to ManageCodesWindow on completion
+
+## Notification Issues (Unsigned Apps)
+
+### The Problem
+macOS returns `UNErrorCodeNotificationsNotAllowed` (Error Code=1) for unsigned apps, regardless of entitlements:
+
+```
+[com.rdpr.GhostKey] Requested authorization [ didGrant: 0 hasError: 1 ]
+❌ Notification authorization error: Error Domain=UNErrorDomain Code=1 "(null)"
+```
+
+### Root Cause
+- **Code signing required**: macOS Notification Center requires apps to be properly signed
+- **Entitlements alone aren't enough**: Even with `GhostKey.entitlements`, unsigned apps are rejected
+- **Security feature**: This prevents malicious apps from spamming notifications
+- **No workarounds**: Restarting Notification Center, clearing preferences, etc. don't work reliably
+
+### Solutions
+
+#### For Development (Local Builds)
+✅ **Works perfectly** - Xcode signs debug builds automatically:
+1. Build and run from Xcode (⌘R)
+2. Notifications work immediately
+3. Bundle ID: `com.rdpr.GhostKey.debug` (Dev) or `com.rdpr.GhostKey` (Release)
+
+#### For Distribution (DMG/ZIP)
+❌ **Doesn't work** unless you:
+1. **Sign with Apple Developer ID** ($99/year)
+   ```bash
+   codesign --sign "Developer ID Application: Your Name" GhostKey.app
+   ```
+2. **Notarize the app** (submit to Apple for scanning)
+   ```bash
+   xcrun notarytool submit GhostKey.dmg --apple-id ... --password ...
+   ```
+3. **Staple the notarization** (attach approval to app)
+   ```bash
+   xcrun stapler staple GhostKey.app
+   ```
+
+### Testing Notifications
+
+1. **Clean state** (always start fresh):
+   ```bash
+   ./development-scripts/complete-reset.sh
+   ```
+
+2. **Build and run** from Xcode (not from DMG)
+
+3. **Check Console.app**:
+   - Filter: "GhostKey"
+   - Look for: "✅ Notification authorization GRANTED"
+   - Error: "UNErrorDomain Code=1" = unsigned app rejected
+
+4. **Verify in System Settings**:
+   - System Settings → Notifications
+   - Should see "GhostKey Dev" (Debug) or "GhostKey" (Release)
+   - If missing = app not registered (unsigned or error)
+
+### Why GitHub Releases Don't Have Notifications
+The automated releases are **unsigned and unnotarized** because:
+- No Apple Developer certificate in GitHub Actions
+- Would require storing signing credentials in repo (security risk)
+- $99/year per developer account
+- Users who need notifications should build from source
 
 ## Tips
 
@@ -147,4 +249,5 @@ GhostKeyApp.swift        - Entry point, lifecycle management
 - Test DMG installs separately from Xcode runs
 - Keep Debug and Release versions side-by-side for comparison
 - Check Console.app for detailed logs when debugging issues
+- **Notifications only work in local builds** (from Xcode)
 

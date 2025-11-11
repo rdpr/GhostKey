@@ -8,19 +8,17 @@ final class StatusBarController: NSObject {
     private let paste: PasteManager
     private let notifier: NotificationManager
     private let pasteAction: () -> Void
-    private let reloadAction: () -> Void
     private var lastBand: ColorBand?
 
-    init(store: CodeStore, paste: PasteManager, notifier: NotificationManager, pasteAction: @escaping () -> Void, reloadAction: @escaping () -> Void) {
+    init(store: CodeStore, paste: PasteManager, notifier: NotificationManager, pasteAction: @escaping () -> Void) {
         self.store = store
         self.paste = paste
         self.notifier = notifier
         self.pasteAction = pasteAction
-        self.reloadAction = reloadAction
         super.init()
         configureMenu()
         statusItem.menu = menu
-        if let button = statusItem.button { button.font = .monospacedSystemFont(ofSize: 13, weight: .regular) }
+        if let button = statusItem.button { button.font = .systemFont(ofSize: 13, weight: .regular) }
     }
 
     func refreshTitle(didConsume: Bool = false) {
@@ -47,37 +45,23 @@ final class StatusBarController: NSObject {
         menu.autoenablesItems = false
         menu.items = []
 
+        let manageItem = NSMenuItem(title: "Manage codes…", action: #selector(onManage), keyEquivalent: "")
+        manageItem.target = self
+        menu.addItem(manageItem)
+
         let pasteItem = NSMenuItem(title: "Paste next code", action: #selector(onPaste), keyEquivalent: "")
         pasteItem.target = self
         menu.addItem(pasteItem)
-
-        let regItem = NSMenuItem(title: "Register codes…", action: #selector(onRegister), keyEquivalent: "")
-        regItem.target = self
-        menu.addItem(regItem)
-
-        menu.addItem(.separator())
-
-        let resetItem = NSMenuItem(title: "Reset index…", action: #selector(onResetIndex), keyEquivalent: "")
-        resetItem.target = self
-        menu.addItem(resetItem)
-
-        let reloadItem = NSMenuItem(title: "Reload files", action: #selector(onReload), keyEquivalent: "r")
-        reloadItem.target = self
-        menu.addItem(reloadItem)
-
-        let openCodes = NSMenuItem(title: "Open codes.txt", action: #selector(onOpenCodes), keyEquivalent: "")
-        openCodes.target = self
-        menu.addItem(openCodes)
-
-        let openIndex = NSMenuItem(title: "Open index.json", action: #selector(onOpenIndex), keyEquivalent: "")
-        openIndex.target = self
-        menu.addItem(openIndex)
 
         menu.addItem(.separator())
 
         let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(onPrefs), keyEquivalent: ",")
         prefsItem.target = self
         menu.addItem(prefsItem)
+        
+        let welcomeItem = NSMenuItem(title: "Show Welcome Guide", action: #selector(onWelcome), keyEquivalent: "")
+        welcomeItem.target = self
+        menu.addItem(welcomeItem)
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(onQuit), keyEquivalent: "q")
         quitItem.target = self
@@ -86,27 +70,11 @@ final class StatusBarController: NSObject {
 
     @objc private func onPaste() { pasteAction() }
 
-    @objc private func onRegister() {
-        RegisterWindow.show()
+    @objc private func onManage() {
+        ManageCodesWindow.show()
     }
-
-    @objc private func onResetIndex() {
-        let alert = NSAlert()
-        alert.messageText = "Reset index?"
-        alert.informativeText = "This sets next_index to 0. You can edit index.json manually later."
-        alert.addButton(withTitle: "Reset")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            store.resetIndex(to: 0)
-            refreshTitle()
-        }
-    }
-
-    @objc private func onReload() { reloadAction() }
-
-    @objc private func onOpenCodes() { NSWorkspace.shared.open(Preferences.codesURL) }
-    @objc private func onOpenIndex() { NSWorkspace.shared.open(Preferences.indexURL) }
 
     @objc private func onPrefs() { PreferencesWindow.show() }
+    @objc private func onWelcome() { WelcomeWindow.show() }
     @objc private func onQuit() { NSApp.terminate(nil) }
 }

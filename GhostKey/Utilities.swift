@@ -18,7 +18,6 @@ enum Preferences {
         
         defaults.register(defaults: [
             "codesPath": AppPaths.appSupportDir.appendingPathComponent("codes.txt").path,
-            "indexPath": AppPaths.appSupportDir.appendingPathComponent("index.json").path,
             "yellowThreshold": 40,
             "orangeThreshold": 20,
             "redThreshold": 10,
@@ -31,17 +30,11 @@ enum Preferences {
     }
 
     static var codesURL: URL {
-if let path = defaults.string(forKey: "codesPath"), !path.isEmpty {
-return URL(fileURLWithPath: path)
-}
-return AppPaths.appSupportDir.appendingPathComponent("codes.txt")
-}
-    static var indexURL: URL {
-if let path = defaults.string(forKey: "indexPath"), !path.isEmpty {
-return URL(fileURLWithPath: path)
-}
-return AppPaths.appSupportDir.appendingPathComponent("index.json")
-}
+        if let path = defaults.string(forKey: "codesPath"), !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return AppPaths.appSupportDir.appendingPathComponent("codes.txt")
+    }
 
     static var thresholds: (yellow: Int, orange: Int, red: Int) {
         (defaults.integer(forKey: "yellowThreshold"), defaults.integer(forKey: "orangeThreshold"), defaults.integer(forKey: "redThreshold"))
