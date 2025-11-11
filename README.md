@@ -1,7 +1,7 @@
 # GhostKey
 
 <p align="center">
-  <img src="Media.xcassets/AppIcon.appiconset/GhostKey-128.png" alt="GhostKey Logo" width="128" height="128">
+  <img src="Media.xcassets/AppIcon.appiconset/GhostKey-256.png" alt="GhostKey Logo" width="192" height="192">
 </p>
 
 A lightweight macOS menu bar app for quickly pasting authentication codes with a global hotkey. Perfect for managing 2FA codes, one-time passwords, or any sequential codes you need to paste frequently.
