@@ -175,6 +175,28 @@ Then double-click GhostKey.app to open it normally.
 2. Try recording a different key combination in Preferences
 3. Restart GhostKey after changing the hotkey
 
+### Notifications Not Appearing (DMG Install)
+**This is a known limitation of unsigned apps.** macOS returns `UNErrorCodeNotificationsNotAllowed` (Error Code=1) for unsigned apps, even with proper entitlements.
+
+**The only reliable solution is to build from source:**
+1. Clone the repository
+2. Open `GhostKey.xcodeproj` in Xcode
+3. Build and run (⌘R)
+4. The locally-built app will have working notifications
+
+**Why DMG installs don't work:**
+- Unsigned apps lack proper code signatures
+- macOS refuses to register them for notifications
+- Adding entitlements doesn't help without signing
+- This is a macOS security feature, not a bug
+
+**Workarounds (unreliable):**
+- Restart Notification Center: `killall NotificationCenter`
+- Check Console.app for `UNErrorDomain Code=1` errors
+- Note: These rarely work for unsigned apps
+
+> **For developers**: To properly distribute with notifications, you need to sign with an Apple Developer ID certificate ($99/year).
+
 ## Development
 
 ### Project Structure

@@ -192,7 +192,18 @@ jobs:
         
         > **Note**: This removes the quarantine flag that macOS adds to downloaded apps. You only need to do this once.
         
-        **Alternative**: Build from source following the [README](https://github.com/rdpr/ghostkey#building-from-source).
+        ### ⚠️ Known Limitation: Notifications
+        
+        **System notifications will NOT work** in this unsigned build. macOS requires apps to be code-signed to register for notifications.
+        
+        **If you need notifications**, you must build from source:
+        1. Clone the repository
+        2. Open `GhostKey.xcodeproj` in Xcode
+        3. Build and run (⌘R)
+        
+        Local builds are automatically signed by Xcode and have full notification support.
+        
+        See [DEVELOPMENT.md](https://github.com/rdpr/ghostkey/blob/main/DEVELOPMENT.md#notification-issues-unsigned-apps) for details.
         
         ### ✅ Checksums
         
