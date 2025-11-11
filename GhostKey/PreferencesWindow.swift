@@ -3,8 +3,6 @@ import ServiceManagement
 import Carbon.HIToolbox
 
 struct PreferencesView: View {
-    @State private var codesPath = Preferences.codesURL.path
-    @State private var indexPath = Preferences.indexURL.path
     @State private var yellow = Preferences.thresholds.yellow
     @State private var orange = Preferences.thresholds.orange
     @State private var red = Preferences.thresholds.red
@@ -17,16 +15,6 @@ struct PreferencesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Files Section
-                sectionHeader("Files")
-                VStack(spacing: 8) {
-                    fileRow(title: "codes.txt", path: $codesPath, pick: pickCodes, onCommit: saveCodesPath)
-                    fileRow(title: "index.json", path: $indexPath, pick: pickIndex, onCommit: saveIndexPath)
-                }
-                
-                Divider()
-                    .padding(.vertical, 4)
-                
                 // Thresholds Section
                 sectionHeader("Thresholds")
                 VStack(spacing: 8) {
@@ -50,6 +38,7 @@ struct PreferencesView: View {
                         onCommit: saveHotkey
                     )
                     Button("Reset") {
+                        isRecordingHotkey = false // Ensure recording state is cleared
                         hotkeyKeyCode = 16 // Y key
                         hotkeyModifiers = 6400 // Ctrl+Option+Cmd (4096 + 2048 + 256)
                         saveHotkey()
@@ -81,6 +70,12 @@ struct PreferencesView: View {
                 
             }
             .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Unfocus any active text field when clicking outside
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
         }
     }
     
@@ -109,38 +104,6 @@ struct PreferencesView: View {
         }
     }
 
-    private func fileRow(title: String, path: Binding<String>, pick: @escaping () -> Void, onCommit: @escaping () -> Void) -> some View {
-        HStack {
-            Text(title).frame(width: 90, alignment: .trailing)
-            TextField("", text: path, onCommit: onCommit)
-            Button("Choose…") {
-                pick()
-                onCommit()
-            }
-        }
-    }
-
-    private func pickCodes() { if let p = pickFile(allowCreate: true) { codesPath = p.path } }
-    private func pickIndex() { if let p = pickFile(allowCreate: true) { indexPath = p.path } }
-
-    private func pickFile(allowCreate: Bool) -> URL? {
-        let p = NSOpenPanel()
-        p.canChooseFiles = true; p.canChooseDirectories = false
-        p.allowsMultipleSelection = false
-        p.canCreateDirectories = allowCreate
-        return p.runModal() == .OK ? p.url : nil
-    }
-
-    private func saveCodesPath() {
-        UserDefaults.standard.set(codesPath, forKey: "codesPath")
-        NotificationCenter.default.post(name: .YCPreferencesSaved, object: nil)
-    }
-    
-    private func saveIndexPath() {
-        UserDefaults.standard.set(indexPath, forKey: "indexPath")
-        NotificationCenter.default.post(name: .YCPreferencesSaved, object: nil)
-    }
-    
     private func saveThresholds() {
         let d = UserDefaults.standard
         d.set(yellow, forKey: "yellowThreshold")
@@ -206,6 +169,9 @@ struct HotkeyRecorder: NSViewRepresentable {
             guard let textField = obj.object as? NSTextField else { return }
             parent.isRecording = true
             
+            // Notify app to temporarily disable global hotkey
+            NotificationCenter.default.post(name: .disableGlobalHotkey, object: nil)
+            
             // Start monitoring key events
             monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
                 guard let self = self else { return event }
@@ -248,6 +214,9 @@ struct HotkeyRecorder: NSViewRepresentable {
                 self.monitor = nil
             }
             textField?.window?.makeFirstResponder(nil)
+            
+            // Re-enable global hotkey
+            NotificationCenter.default.post(name: .enableGlobalHotkey, object: nil)
         }
     }
 }
@@ -277,7 +246,11 @@ class RecorderTextField: NSTextField {
     }
 }
 
-extension Notification.Name { static let YCPreferencesSaved = Notification.Name("YCPreferencesSaved") }
+extension Notification.Name { 
+    static let YCPreferencesSaved = Notification.Name("YCPreferencesSaved")
+    static let disableGlobalHotkey = Notification.Name("DisableGlobalHotkey")
+    static let enableGlobalHotkey = Notification.Name("EnableGlobalHotkey")
+}
 
 enum PreferencesWindow {
     private static var window: NSWindow?

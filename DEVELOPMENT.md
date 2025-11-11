@@ -151,7 +151,7 @@ Quick version:
 ```
 GhostKeyApp.swift        - Entry point, lifecycle management
 ├── StatusBarController  - Menu bar UI and interactions
-├── CodeStore           - Code storage and index management
+├── CodeStore           - Code storage and consumption
 ├── FileWatcher         - Monitors files for changes
 ├── PasteManager        - Keyboard event synthesis
 ├── GlobalHotKey        - Hotkey registration

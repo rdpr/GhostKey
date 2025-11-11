@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Add unreleased changes here -->
 
+## [1.0.0-alpha.1] - 2025-11-11
+
+### 🎯 Breaking Changes
+- **Removed index tracking system**: Codes are now deleted from `codes.txt` when used
+- **No more index.json file**: The app now operates on a simpler "consume and delete" model
+- Counter now shows the actual number of remaining codes in the file
+
+### Changed
+- `CodeStore.consumeNext()` replaces `advance()` - deletes the first code from the file
+- Counter always reflects the current length of the codes file
+- File watcher now only watches `codes.txt` (no more `index.json`)
+- Removed "Reset index" menu item (no longer needed)
+- Removed "Open index.json" menu item
+- Removed index path configuration from Preferences window
+
+### Technical
+- Simplified `CodeStore` by removing all index-related logic
+- Removed `IndexFile` model
+- Removed checksum validation (no longer needed without index)
+- Codes are now atomically written back to file after consumption
+
+### Migration Note
+- Existing users: Your `index.json` file will be ignored (safe to delete)
+- All codes in `codes.txt` are now available, regardless of previous index position
+
 ## [1.0.0] - 2025-11-10
 
 ### Added

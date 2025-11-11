@@ -38,17 +38,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         status = StatusBarController(store: store, paste: paste, notifier: notifier) {
             self.pasteNextCode()
-        } reloadAction: {
-            self.store.loadAll()
-            self.status.refreshTitle()
         }
 
-        watcher = FileWatcher(paths: [Preferences.codesURL.path, Preferences.indexURL.path]) { [weak self] in
+        watcher = FileWatcher(paths: [Preferences.codesURL.path]) { [weak self] in
             self?.store.loadAll()
             self?.status.refreshTitle()
         }
 
         notifier.requestAuthIfNeeded()
+        
+        // Show welcome window on first launch
+        if WelcomeWindow.shouldShow() {
+            // Delay slightly to ensure app is fully initialized
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                WelcomeWindow.show()
+            }
+        }
 
         // Register hotkey from preferences
         let hk = Preferences.hotkey
@@ -72,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Listen for preferences changes to rebind watchers and hotkey
         prefsObserver = NotificationCenter.default.addObserver(forName: .YCPreferencesSaved, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
-            self.watcher?.updatePaths([Preferences.codesURL.path, Preferences.indexURL.path])
+            self.watcher?.updatePaths([Preferences.codesURL.path])
             self.store.loadAll()
             self.status.refreshTitle()
             
@@ -82,6 +87,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.pasteNextCode()
             }
             self.hotkey?.register()
+        }
+        
+        // Listen for hotkey disable/enable requests (for recording new hotkeys)
+        NotificationCenter.default.addObserver(forName: .disableGlobalHotkey, object: nil, queue: .main) { [weak self] _ in
+            NSLog("🔇 Temporarily disabling global hotkey for recording")
+            self?.hotkey?.unregister()
+        }
+        
+        NotificationCenter.default.addObserver(forName: .enableGlobalHotkey, object: nil, queue: .main) { [weak self] _ in
+            NSLog("🔊 Re-enabling global hotkey after recording")
+            self?.hotkey?.register()
         }
 
         status.refreshTitle()
@@ -101,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let ok = paste.paste(code: code)
-        if ok, store.advance() {
+        if ok, store.consumeNext() {
             status.refreshTitle(didConsume: true)
         }
     }

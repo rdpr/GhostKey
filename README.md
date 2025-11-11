@@ -24,14 +24,15 @@ A lightweight macOS menu bar app for quickly pasting authentication codes with a
 ### 📝 Code Management
 - **Simple Text File**: Codes stored in `codes.txt` for easy editing
 - **Auto-Reload**: File changes are detected automatically
-- **Manual Registration**: Built-in window for adding codes one at a time
-- **Index Tracking**: Remembers which code is next in `index.json`
+- **Management Hub**: Comprehensive window for viewing and adding codes
+- **Live Counter**: See remaining codes and color thresholds at a glance
+- **Automatic Cleanup**: Used codes are deleted from the file automatically
 
 ### ⚙️ Customization
 - **Custom Hotkey**: Record any keyboard shortcut you prefer
-- **Flexible Storage**: Choose custom locations for `codes.txt` and `index.json`
 - **Launch at Login**: Option to start automatically
 - **Desktop Notifications**: Get alerted when codes are running low
+- **Welcome Guide**: Interactive tutorial on first launch (can be shown again anytime)
 
 ## Installation
 
@@ -82,9 +83,23 @@ Then double-click GhostKey.app to open it normally.
 
 ## Usage
 
+### First Launch
+
+On first launch, GhostKey shows a **Welcome Guide** with:
+- Overview of key features
+- Setup instructions
+- Understanding the counter
+- Quick tips
+
+You can revisit this guide anytime via the menu → "Show Welcome Guide"
+
 ### Initial Setup
 
-1. **Add Codes**: Click the menu bar icon → "Start Register Mode…" to add codes one at a time, or manually edit your `codes.txt` file
+1. **Add Codes**: Click the menu bar icon → "Manage codes…" to:
+   - View all your current codes
+   - See the live counter and thresholds
+   - Add new codes with real-time validation
+   - Or manually edit your `codes.txt` file
    
 2. **Configure Hotkey** (optional): 
    - Open Preferences (⌘,)
@@ -100,7 +115,7 @@ Then double-click GhostKey.app to open it normally.
 
 1. **Paste Next Code**: Press your hotkey (default: ⌃⌥⌘Y) while focused on any text field
 2. **Monitor Counter**: Check the menu bar to see how many codes remain
-3. **Reset Index**: If needed, use "Reset index…" to start from the beginning
+3. **Used Codes**: Codes are automatically deleted from `codes.txt` after use
 
 ### File Format
 
@@ -114,21 +129,7 @@ Then double-click GhostKey.app to open it normally.
 456789
 ```
 
-**index.json**:
-```json
-{
-  "next_index": 0,
-  "codes_checksum": "sha256:...",
-  "updated_at": "2025-11-10T12:00:00Z"
-}
-```
-
 ## Preferences
-
-### Files
-- **codes.txt**: Location of your codes file
-- **index.json**: Location of the index tracking file
-- Default location: `~/Library/Application Support/GhostKey/`
 
 ### Thresholds
 - **🟡 Yellow**: Show yellow indicator when codes ≤ this number (default: 40)
@@ -167,8 +168,8 @@ Then double-click GhostKey.app to open it normally.
 
 ### File Not Updating
 1. Use "Reload files" from the menu to force a refresh
-2. Check file permissions on `codes.txt` and `index.json`
-3. Ensure the files are in the expected location
+2. Check file permissions on `codes.txt`
+3. Ensure the file is in the expected location
 
 ### Hotkey Not Working
 1. Check for conflicts with other apps using the same shortcut
