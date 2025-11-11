@@ -33,12 +33,13 @@ rm -f ~/Library/Preferences/com.rdpr.GhostKey.plist 2>/dev/null && echo "✓ Del
 rm -rf ~/Library/Caches/com.rdpr.GhostKey 2>/dev/null
 
 # === Shared data ===
-rm -rf ~/Library/Application\ Support/GhostKey 2>/dev/null && echo "✓ Deleted Application Support"
+rm -rf ~/Library/Application\ Support/GhostKey 2>/dev/null && echo "✓ Deleted Application Support (codes.txt)"
 
 # Restart preferences daemon
 killall cfprefsd 2>/dev/null && echo "✓ Restarted preferences daemon"
 
 echo "✅ Complete reset done!"
+echo "Note: This will reset the Welcome Guide and delete all codes"
 ```
 
 ## Debugging
@@ -156,8 +157,26 @@ GhostKeyApp.swift        - Entry point, lifecycle management
 ├── PasteManager        - Keyboard event synthesis
 ├── GlobalHotKey        - Hotkey registration
 ├── NotificationManager - System notifications
-└── PreferencesWindow   - Settings UI
+├── PreferencesWindow   - Settings UI
+├── ManageCodesWindow   - Main code management hub (shows in dock)
+└── WelcomeWindow       - First-launch tutorial (4-step guide)
 ```
+
+### Key Components
+
+**ManageCodesWindow** (formerly RegisterWindow):
+- Central hub for code management
+- Live counter with threshold badges
+- Auto-refreshing code list (1-second timer)
+- Interactive delete buttons
+- Real-time validation
+- Shows app in dock when open
+
+**WelcomeWindow**:
+- Multi-step onboarding flow
+- Shows on first launch
+- Can be reopened from menu
+- Leads to ManageCodesWindow on completion
 
 ## Notification Issues (Unsigned Apps)
 

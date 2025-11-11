@@ -23,8 +23,12 @@ A lightweight macOS menu bar app for quickly pasting authentication codes with a
 
 ### 📝 Code Management
 - **Simple Text File**: Codes stored in `codes.txt` for easy editing
-- **Auto-Reload**: File changes are detected automatically
+- **Auto-Reload**: File changes are detected automatically (1-second refresh)
 - **Management Hub**: Comprehensive window for viewing and adding codes
+  - Interactive delete buttons for individual codes
+  - Smart auto-scroll to newly added codes
+  - Real-time validation with visual feedback
+  - Shows app in dock when open
 - **Live Counter**: See remaining codes and color thresholds at a glance
 - **Automatic Cleanup**: Used codes are deleted from the file automatically
 
@@ -150,7 +154,6 @@ You can revisit this guide anytime via the menu → "Show Welcome Guide"
 | ⌃⌥⌘Y | Paste next code (customizable) |
 | ⌘, | Open Preferences |
 | ⌘Q | Quit GhostKey |
-| ⌘R | Reload files manually |
 
 ## Privacy & Security
 
@@ -167,9 +170,10 @@ You can revisit this guide anytime via the menu → "Show Welcome Guide"
 3. Try removing and re-adding the permission
 
 ### File Not Updating
-1. Use "Reload files" from the menu to force a refresh
+1. The Manage Codes window auto-refreshes every second
 2. Check file permissions on `codes.txt`
 3. Ensure the file is in the expected location
+4. File watcher monitors `codes.txt` automatically
 
 ### Hotkey Not Working
 1. Check for conflicts with other apps using the same shortcut
@@ -205,12 +209,13 @@ You can revisit this guide anytime via the menu → "Show Welcome Guide"
 GhostKey/
 ├── GhostKeyApp.swift        # App entry point
 ├── StatusBarController.swift # Menu bar UI
-├── CodeStore.swift           # Code management
+├── CodeStore.swift           # Code storage and consumption
 ├── FileWatcher.swift         # File monitoring
 ├── PasteManager.swift        # Keyboard event handling
 ├── Hotkey.swift              # Global hotkey registration
 ├── PreferencesWindow.swift   # Settings UI
-├── RegisterWindow.swift      # Code registration UI
+├── RegisterWindow.swift      # Manage codes window (main hub)
+├── WelcomeWindow.swift       # First-launch tutorial
 ├── Notifications.swift       # System notifications
 ├── Models.swift              # Data models
 └── Utilities.swift           # Helpers & preferences
@@ -248,5 +253,5 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ---
 
-**Note**: This is a menu bar app, so there's no Dock icon. Look for the counter emoji in your menu bar!
+**Note**: This is a menu bar app. Look for the counter emoji in your menu bar! The app appears in the Dock only when the Manage Codes window is open.
 
