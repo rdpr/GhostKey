@@ -12,7 +12,7 @@ struct WelcomeView: View {
             description: "Your menu bar companion for managing and pasting one-time codes.",
             details: [
                 "Store codes in a simple text file",
-                "Paste with a global hotkey (⌃⌥⌘Y)",
+                "Paste with a global hotkey (default: ⌃⌥⌘Y)",
                 "Visual counter shows remaining codes",
                 "Codes are automatically deleted after use"
             ]
