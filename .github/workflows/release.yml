@@ -53,6 +53,19 @@ jobs:
       with:
         xcode-version: latest-stable
     
+    - name: Install Sparkle CLI tools
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📥 Installing Sparkle CLI tools..."
+        cd /tmp
+        curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o sparkle.tar.xz
+        tar -xf sparkle.tar.xz
+        sudo cp -f bin/sign_update /usr/local/bin/
+        sudo chmod +x /usr/local/bin/sign_update
+        echo "✅ Sparkle CLI tools installed"
+        which sign_update
+        sign_update -v || echo "sign_update ready"
+    
     - name: Load Sparkle private key
       if: steps.check_tag.outputs.exists == 'false'
       id: sparkle_keys
@@ -164,20 +177,16 @@ jobs:
         
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
         
-        # Sign the ZIP if we have a private key
-        if [ -n "$PRIVATE_KEY" ]; then
-          SIGNATURE=$(/opt/homebrew/bin/sign_update "GhostKey-${{ steps.version.outputs.version }}.zip" "$PRIVATE_KEY" 2>/dev/null || /usr/local/bin/sign_update "GhostKey-${{ steps.version.outputs.version }}.zip" "$PRIVATE_KEY" 2>/dev/null || echo "")
-          
-          if [ -n "$SIGNATURE" ]; then
-            echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
-            echo "✅ ZIP signed successfully"
-          else
-            echo "⚠️  Signature generation failed"
-            echo "signature=" >> $GITHUB_OUTPUT
-          fi
+        # Sign the ZIP with the private key
+        SIGNATURE=$(sign_update "GhostKey-${{ steps.version.outputs.version }}.zip" "$PRIVATE_KEY")
+        
+        if [ -n "$SIGNATURE" ]; then
+          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+          echo "✅ ZIP signed successfully"
+          echo "🔍 Signature: ${SIGNATURE:0:50}..."
         else
-          echo "⚠️  No private key available, skipping signature"
-          echo "signature=" >> $GITHUB_OUTPUT
+          echo "❌ Signature generation failed"
+          exit 1
         fi
       id: sign_zip
     
