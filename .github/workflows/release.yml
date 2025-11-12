@@ -65,17 +65,21 @@ jobs:
         
         # Find where Sparkle tools are
         echo "🔍 Searching for Sparkle binaries..."
-        find $(brew --prefix sparkle 2>/dev/null || echo /usr/local/Cellar/sparkle /opt/homebrew/Cellar/sparkle) -name "generate_keys" -o -name "generate_*" 2>/dev/null || echo "No generate tools found"
-        
-        # List what's in the Sparkle bin directory
-        SPARKLE_PREFIX=$(brew --prefix sparkle 2>/dev/null)
+        SPARKLE_PREFIX=$(brew --prefix sparkle 2>/dev/null || echo "")
         if [ -n "$SPARKLE_PREFIX" ]; then
+          find "$SPARKLE_PREFIX" -name "generate_keys" 2>/dev/null || echo "generate_keys not found in $SPARKLE_PREFIX"
+          find "$SPARKLE_PREFIX" -name "generate_*" 2>/dev/null || echo "No generate_* tools found"
+          
           echo "📁 Sparkle installed at: $SPARKLE_PREFIX"
-          ls -la "$SPARKLE_PREFIX/bin/" 2>/dev/null || echo "No bin directory"
-          ls -la "$SPARKLE_PREFIX/" 2>/dev/null | head -20
+          ls -la "$SPARKLE_PREFIX/bin/" 2>/dev/null || echo "No bin directory at $SPARKLE_PREFIX/bin/"
+          echo "📂 Contents of $SPARKLE_PREFIX:"
+          ls -la "$SPARKLE_PREFIX/" 2>/dev/null | head -20 || echo "Cannot list directory"
+        else
+          echo "⚠️  Could not determine Sparkle installation directory"
         fi
         
-        echo "✅ Sparkle tools installed"
+        echo "✅ Sparkle formula installed (CLI tools not included in Homebrew version)"
+        echo "ℹ️  See SPARKLE_KEYS_SETUP.md for manual key generation instructions"
     
     - name: Generate or use Sparkle keys
       if: steps.check_tag.outputs.exists == 'false'
