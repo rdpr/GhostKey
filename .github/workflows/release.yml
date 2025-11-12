@@ -71,24 +71,55 @@ jobs:
           echo "⚠️  SPARKLE_PRIVATE_KEY not found in secrets"
           echo "⚠️  Generating temporary key pair for this build..."
           
-          # Generate temporary key pair
-          /opt/homebrew/bin/generate_keys > keys.txt 2>&1 || /usr/local/bin/generate_keys > keys.txt 2>&1 || true
+          # Try to find generate_keys
+          echo "🔍 Searching for generate_keys..."
+          which generate_keys || echo "generate_keys not in PATH"
+          ls -la /opt/homebrew/bin/generate_keys 2>/dev/null || echo "Not in /opt/homebrew/bin"
+          ls -la /usr/local/bin/generate_keys 2>/dev/null || echo "Not in /usr/local/bin"
           
-          if [ -f keys.txt ] && [ -s keys.txt ]; then
+          # Generate temporary key pair
+          echo "🔑 Attempting key generation..."
+          if command -v generate_keys &> /dev/null; then
+            generate_keys > keys.txt 2>&1
+          elif [ -f /opt/homebrew/bin/generate_keys ]; then
+            /opt/homebrew/bin/generate_keys > keys.txt 2>&1
+          elif [ -f /usr/local/bin/generate_keys ]; then
+            /usr/local/bin/generate_keys > keys.txt 2>&1
+          else
+            echo "❌ generate_keys command not found!"
+            echo "" > keys.txt
+          fi
+          
+          echo "📄 Keys file contents:"
+          cat keys.txt || echo "keys.txt not readable"
+          echo "---"
+          
+          if [ -f keys.txt ] && [ -s keys.txt ] && grep -q "Private key:" keys.txt; then
+            echo "✅ Keys file generated successfully"
+            
             PRIVATE_KEY=$(cat keys.txt | grep -A 1 "Private key:" | tail -n 1 | tr -d '[:space:]')
             PUBLIC_KEY=$(cat keys.txt | grep -A 1 "Public key:" | tail -n 1 | tr -d '[:space:]')
+            
+            echo "🔍 PRIVATE_KEY length: ${#PRIVATE_KEY}"
+            echo "🔍 PUBLIC_KEY length: ${#PUBLIC_KEY}"
+            echo "🔍 PRIVATE_KEY preview: ${PRIVATE_KEY:0:30}..."
+            echo "🔍 PUBLIC_KEY preview: ${PUBLIC_KEY:0:30}..."
+            
             echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
             echo "public_key=$PUBLIC_KEY" >> $GITHUB_OUTPUT
             echo "✅ Generated temporary keys"
           else
-            echo "❌ Failed to generate keys"
+            echo "❌ Failed to generate keys or keys file is empty/invalid"
             echo "private_key=" >> $GITHUB_OUTPUT
             echo "public_key=" >> $GITHUB_OUTPUT
           fi
         else
+          echo "✅ Using keys from GitHub Secrets"
+          echo "🔍 PRIVATE_KEY from secrets length: ${#{{ secrets.SPARKLE_PRIVATE_KEY }}}"
+          echo "🔍 PUBLIC_KEY from secrets length: ${#{{ secrets.SPARKLE_PUBLIC_KEY }}}"
+          
           echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
           echo "public_key=${{ secrets.SPARKLE_PUBLIC_KEY }}" >> $GITHUB_OUTPUT
-          echo "✅ Using keys from GitHub Secrets"
         fi
     
     - name: Inject public key into Info.plist
