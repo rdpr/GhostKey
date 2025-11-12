@@ -53,139 +53,11 @@ jobs:
       with:
         xcode-version: latest-stable
     
-    - name: Install Sparkle tools
-      if: steps.check_tag.outputs.exists == 'false'
-      run: |
-        echo "📥 Installing Sparkle tools..."
-        brew install sparkle
-        
-        # Check what was installed
-        echo "🔍 Checking Sparkle installation..."
-        brew list sparkle || echo "Sparkle not in brew list"
-        
-        # Find where Sparkle tools are
-        echo "🔍 Searching for Sparkle binaries..."
-        SPARKLE_PREFIX=$(brew --prefix sparkle 2>/dev/null || echo "")
-        if [ -n "$SPARKLE_PREFIX" ]; then
-          find "$SPARKLE_PREFIX" -name "generate_keys" 2>/dev/null || echo "generate_keys not found in $SPARKLE_PREFIX"
-          find "$SPARKLE_PREFIX" -name "generate_*" 2>/dev/null || echo "No generate_* tools found"
-          
-          echo "📁 Sparkle installed at: $SPARKLE_PREFIX"
-          ls -la "$SPARKLE_PREFIX/bin/" 2>/dev/null || echo "No bin directory at $SPARKLE_PREFIX/bin/"
-          echo "📂 Contents of $SPARKLE_PREFIX:"
-          ls -la "$SPARKLE_PREFIX/" 2>/dev/null | head -20 || echo "Cannot list directory"
-        else
-          echo "⚠️  Could not determine Sparkle installation directory"
-        fi
-        
-        echo "✅ Sparkle formula installed (CLI tools not included in Homebrew version)"
-        echo "ℹ️  See SPARKLE_KEYS_SETUP.md for manual key generation instructions"
-    
-    - name: Generate or use Sparkle keys
+    - name: Load Sparkle private key
       if: steps.check_tag.outputs.exists == 'false'
       id: sparkle_keys
       run: |
-        echo "🔐 Setting up Sparkle keys..."
-        
-        # Check if private key exists in secrets
-        if [ -z "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-          echo "⚠️  SPARKLE_PRIVATE_KEY not found in secrets"
-          echo "⚠️  Generating temporary key pair for this build..."
-          
-          # Try to find generate_keys
-          echo "🔍 Searching for generate_keys..."
-          which generate_keys || echo "generate_keys not in PATH"
-          ls -la /opt/homebrew/bin/generate_keys 2>/dev/null || echo "Not in /opt/homebrew/bin"
-          ls -la /usr/local/bin/generate_keys 2>/dev/null || echo "Not in /usr/local/bin"
-          
-          # Generate temporary key pair
-          echo "🔑 Attempting key generation..."
-          if command -v generate_keys &> /dev/null; then
-            generate_keys > keys.txt 2>&1
-          elif [ -f /opt/homebrew/bin/generate_keys ]; then
-            /opt/homebrew/bin/generate_keys > keys.txt 2>&1
-          elif [ -f /usr/local/bin/generate_keys ]; then
-            /usr/local/bin/generate_keys > keys.txt 2>&1
-          else
-            echo "❌ generate_keys command not found!"
-            echo "" > keys.txt
-          fi
-          
-          echo "📄 Keys file contents:"
-          cat keys.txt || echo "keys.txt not readable"
-          echo "---"
-          
-          if [ -f keys.txt ] && [ -s keys.txt ] && grep -q "Private key:" keys.txt; then
-            echo "✅ Keys file generated successfully"
-            
-            PRIVATE_KEY=$(cat keys.txt | grep -A 1 "Private key:" | tail -n 1 | tr -d '[:space:]')
-            PUBLIC_KEY=$(cat keys.txt | grep -A 1 "Public key:" | tail -n 1 | tr -d '[:space:]')
-            
-            echo "🔍 PRIVATE_KEY length: ${#PRIVATE_KEY}"
-            echo "🔍 PUBLIC_KEY length: ${#PUBLIC_KEY}"
-            echo "🔍 PRIVATE_KEY preview: ${PRIVATE_KEY:0:30}..."
-            echo "🔍 PUBLIC_KEY preview: ${PUBLIC_KEY:0:30}..."
-            
-            echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
-            echo "public_key=$PUBLIC_KEY" >> $GITHUB_OUTPUT
-            echo "✅ Generated temporary keys"
-          else
-            echo "❌ Failed to generate keys or keys file is empty/invalid"
-            echo "private_key=" >> $GITHUB_OUTPUT
-            echo "public_key=" >> $GITHUB_OUTPUT
-          fi
-        else
-          echo "✅ Using keys from GitHub Secrets"
-          
-          echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
-          echo "public_key=${{ vars.SPARKLE_PUBLIC_KEY }}" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Inject public key into Info.plist
-      if: steps.check_tag.outputs.exists == 'false'
-      run: |
-        PUBLIC_KEY="${{ steps.sparkle_keys.outputs.public_key }}"
-        
-        echo "🔍 Debug: PUBLIC_KEY length = ${#PUBLIC_KEY}"
-        echo "🔍 Debug: PUBLIC_KEY preview = ${PUBLIC_KEY:0:30}..."
-        
-        if [ -n "$PUBLIC_KEY" ] && [ ${#PUBLIC_KEY} -gt 10 ]; then
-          echo "🔑 Injecting public key into Info.plist..."
-          
-          # Show Info.plist before
-          echo "📄 Info.plist before injection:"
-          grep -A 1 "SUPublicEDKey" GhostKey/Info.plist || echo "SUPublicEDKey not found (expected)"
-          
-          # Add the SUPublicEDKey to Info.plist before building
-          /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $PUBLIC_KEY" GhostKey/Info.plist 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $PUBLIC_KEY" GhostKey/Info.plist
-          
-          # Verify injection
-          echo "📄 Info.plist after injection:"
-          grep -A 1 "SUPublicEDKey" GhostKey/Info.plist || echo "❌ KEY NOT FOUND!"
-          
-          # Also verify using PlistBuddy
-          INJECTED_KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" GhostKey/Info.plist 2>/dev/null || echo "")
-          
-          if [ -n "$INJECTED_KEY" ]; then
-            echo "✅ Public key successfully injected and verified"
-            echo "🔍 Injected key preview: ${INJECTED_KEY:0:30}..."
-          else
-            echo "❌ Public key injection failed!"
-            exit 1
-          fi
-        else
-          echo "⚠️  No valid public key available (length: ${#PUBLIC_KEY})"
-          echo "⚠️  Building without signature verification"
-          echo "⚠️  Updates will still work, but won't be cryptographically verified"
-          echo ""
-          echo "ℹ️  To enable signed updates:"
-          echo "   1. Run: brew install sparkle && generate_keys"
-          echo "   2. Add SPARKLE_PRIVATE_KEY and SPARKLE_PUBLIC_KEY to GitHub Secrets"
-          echo "   3. Re-run this workflow"
-          echo ""
-          echo "📝 Continuing build without public key..."
-        fi
+        echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
     
     - name: Build app
       if: steps.check_tag.outputs.exists == 'false'
@@ -316,7 +188,6 @@ jobs:
         
         VERSION="${{ steps.version.outputs.version }}"
         SIGNATURE="${{ steps.sign_zip.outputs.signature }}"
-        PUBLIC_KEY="${{ steps.sign_zip.outputs.public_key }}"
         DOWNLOAD_URL="https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/GhostKey-${VERSION}.zip"
         ZIP_SIZE=$(stat -f%z "GhostKey-${VERSION}.zip" 2>/dev/null || stat -c%s "GhostKey-${VERSION}.zip")
         PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")

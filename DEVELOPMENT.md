@@ -114,6 +114,18 @@ Hotkeys are stored in UserDefaults with fallback to defaults:
 - Fallback protection prevents broken hotkeys on reset
 - Check console for "Registering hotkey: keyCode=16, modifiers=6400"
 
+### Automatic Updates (Sparkle)
+GhostKey uses the Sparkle framework for automatic updates:
+- **Public key** is hardcoded in `Info.plist` (`SUPublicEDKey`)
+- **Private key** is stored in GitHub Secrets (`SPARKLE_PRIVATE_KEY`)
+- GitHub Actions workflow signs releases automatically
+- Updates are checked daily and on manual trigger from menu
+- Local builds have full update support (no special setup needed)
+
+**For contributors:** No Sparkle setup required. The public key is already in the repository.
+
+**For maintainers:** The private key must remain in GitHub Secrets. Never commit it to the repository.
+
 ## Common Issues
 
 ### "Notifications don't work in DMG build"

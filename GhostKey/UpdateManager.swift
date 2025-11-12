@@ -14,57 +14,24 @@ final class UpdateManager: NSObject {
     
     /// Initialize Sparkle updater
     func setup() {
-        // Check if we have a valid public key (not in development builds)
-        let publicKey = Bundle.main.infoDictionary?["SUPublicEDKey"] as? String
+        // Create updater controller
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: self,
+            userDriverDelegate: nil
+        )
         
-        if publicKey == nil || publicKey?.isEmpty == true {
-            NSLog("⚠️ No SUPublicEDKey found in Info.plist")
-            NSLog("ℹ️ Sparkle updates are only available in release builds")
-            NSLog("ℹ️ For development, check https://github.com/rdpr/GhostKey/releases")
-            return
-        }
+        NSLog("✅ Sparkle updater initialized")
         
-        do {
-            // Create updater controller
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: self,
-                userDriverDelegate: nil
-            )
-            
-            NSLog("✅ Sparkle updater initialized")
-            
-            // Check for updates automatically based on user preference
-            if updaterController?.updater.automaticallyChecksForUpdates == true {
-                NSLog("📦 Automatic update checks enabled")
-            }
-        } catch {
-            NSLog("⚠️ Failed to initialize Sparkle: \(error.localizedDescription)")
-            NSLog("⚠️ Updates will not be available. This is normal for development builds.")
+        // Check for updates automatically based on user preference
+        if updaterController?.updater.automaticallyChecksForUpdates == true {
+            NSLog("📦 Automatic update checks enabled")
         }
     }
     
     /// Manually check for updates (called from menu)
     func checkForUpdates() {
-        guard let controller = updaterController else {
-            NSLog("⚠️ Update checker not available")
-            showUpdateUnavailableAlert()
-            return
-        }
-        
-        controller.checkForUpdates(nil)
-    }
-    
-    /// Show alert when updates are not available
-    private func showUpdateUnavailableAlert() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Updates Not Available"
-            alert.informativeText = "Automatic updates are only available in release builds downloaded from GitHub.\n\nFor development builds, you can manually check for new releases at:\nhttps://github.com/rdpr/GhostKey/releases"
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
+        updaterController?.checkForUpdates(nil)
     }
     
     /// Get the updater instance (for menu item binding)
