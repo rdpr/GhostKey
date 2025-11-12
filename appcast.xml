@@ -8,6 +8,23 @@
     <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
     <link>https://github.com/rdpr/GhostKey/releases/tag/v1.0.2</link>
     <sparkle:releaseNotesLink>https://github.com/rdpr/GhostKey/releases/tag/v1.0.2</sparkle:releaseNotesLink>
+    <pubDate>Wed, 12 Nov 2025 22:14:08 +0000</pubDate>
+    <enclosure 
+        url="https://github.com/rdpr/GhostKey/releases/download/v1.0.2/GhostKey-1.0.2.zip"
+        sparkle:version="1.0.2"
+        sparkle:shortVersionString="1.0.2"
+        length="1254135"
+        type="application/octet-stream"
+        sparkle:edSignature="/KbEXW19efd+vO9G+kQan1UCQRKJaQPtbz/ATm3718rsqaLxSpXhXqkT1LJpM23VW5N/m30ji5NiZBqSt+zQAw=="
+    />
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+</item>
+<item>
+    <title>Version 1.0.2</title>
+    <sparkle:version>1.0.2</sparkle:version>
+    <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+    <link>https://github.com/rdpr/GhostKey/releases/tag/v1.0.2</link>
+    <sparkle:releaseNotesLink>https://github.com/rdpr/GhostKey/releases/tag/v1.0.2</sparkle:releaseNotesLink>
     <pubDate>Wed, 12 Nov 2025 21:58:50 +0000</pubDate>
     <enclosure 
         url="https://github.com/rdpr/GhostKey/releases/download/v1.0.2/GhostKey-1.0.2.zip"
