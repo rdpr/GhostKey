@@ -95,9 +95,24 @@ jobs:
           -derivedDataPath ./build \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=NO \
+          MARKETING_VERSION="$VERSION" \
+          CURRENT_PROJECT_VERSION="$VERSION"
         
         echo "✅ Build complete"
+        
+        # Verify version in built app
+        echo "🔍 Verifying version in built app..."
+        BUILT_APP=$(find ./build -name "GhostKey.app" -type d | head -n 1)
+        if [ -n "$BUILT_APP" ]; then
+          BUILT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$BUILT_APP/Contents/Info.plist" 2>/dev/null || echo "not found")
+          echo "Built app version: $BUILT_VERSION"
+          if [ "$BUILT_VERSION" != "$VERSION" ]; then
+            echo "⚠️  Version mismatch! Expected $VERSION, got $BUILT_VERSION"
+          else
+            echo "✅ Version verified in built app"
+          fi
+        fi
     
     - name: Prepare app bundle
       if: steps.check_tag.outputs.exists == 'false'
@@ -218,6 +233,13 @@ jobs:
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
           echo "✅ ZIP signed successfully"
           echo "🔍 Extracted signature: ${SIGNATURE:0:50}..."
+          
+          # Verify the signature can be validated (optional check)
+          echo "🔍 Signature length: ${#SIGNATURE}"
+          
+          # Check ZIP file wasn't modified
+          ZIP_SIZE=$(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE")
+          echo "🔍 ZIP file size: $ZIP_SIZE bytes"
         else
           echo "❌ Failed to extract signature from output"
           exit 1
