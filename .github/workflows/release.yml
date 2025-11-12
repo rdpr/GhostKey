@@ -58,6 +58,23 @@ jobs:
       run: |
         echo "📥 Installing Sparkle tools..."
         brew install sparkle
+        
+        # Check what was installed
+        echo "🔍 Checking Sparkle installation..."
+        brew list sparkle || echo "Sparkle not in brew list"
+        
+        # Find where Sparkle tools are
+        echo "🔍 Searching for Sparkle binaries..."
+        find $(brew --prefix sparkle 2>/dev/null || echo /usr/local/Cellar/sparkle /opt/homebrew/Cellar/sparkle) -name "generate_keys" -o -name "generate_*" 2>/dev/null || echo "No generate tools found"
+        
+        # List what's in the Sparkle bin directory
+        SPARKLE_PREFIX=$(brew --prefix sparkle 2>/dev/null)
+        if [ -n "$SPARKLE_PREFIX" ]; then
+          echo "📁 Sparkle installed at: $SPARKLE_PREFIX"
+          ls -la "$SPARKLE_PREFIX/bin/" 2>/dev/null || echo "No bin directory"
+          ls -la "$SPARKLE_PREFIX/" 2>/dev/null | head -20
+        fi
+        
         echo "✅ Sparkle tools installed"
     
     - name: Generate or use Sparkle keys
