@@ -173,47 +173,35 @@ jobs:
     - name: Sign ZIP for Sparkle
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        set +e  # Don't exit on error, we want to capture it
-        
         echo "🔐 Signing ZIP with EdDSA..."
         
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
         ZIP_FILE="GhostKey-${{ steps.version.outputs.version }}.zip"
+        KEY_FILE="/tmp/sparkle_private_key.pem"
         
         # Debug info
         echo "🔍 ZIP file: $ZIP_FILE"
-        ls -lh "$ZIP_FILE" || echo "❌ ZIP file not found!"
+        ls -lh "$ZIP_FILE"
         echo "🔍 Private key length: ${#PRIVATE_KEY}"
-        echo "🔍 Private key preview: ${PRIVATE_KEY:0:10}...${PRIVATE_KEY: -10}"
-        echo "🔍 sign_update location: $(which sign_update)"
         
-        # Test sign_update exists and is executable
-        if [ ! -x "$(which sign_update)" ]; then
-          echo "❌ sign_update not found or not executable"
-          exit 1
-        fi
+        # Write private key to temporary file
+        echo "$PRIVATE_KEY" > "$KEY_FILE"
+        chmod 600 "$KEY_FILE"
+        echo "✅ Private key written to temporary file"
         
-        # Sign the ZIP with the private key - capture to file to see full output
-        echo "🔐 Running: sign_update \"$ZIP_FILE\" \"<PRIVATE_KEY>\""
-        sign_update "$ZIP_FILE" "$PRIVATE_KEY" > /tmp/sign_output.txt 2>&1
-        EXIT_CODE=$?
+        # Sign the ZIP with the private key file
+        echo "🔐 Running: sign_update \"$ZIP_FILE\" --ed-key-file \"$KEY_FILE\""
+        SIGNATURE=$(sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE")
         
-        echo "🔍 Exit code: $EXIT_CODE"
-        echo "🔍 Output from sign_update:"
-        cat /tmp/sign_output.txt
+        # Clean up the key file
+        rm -f "$KEY_FILE"
         
-        if [ $EXIT_CODE -eq 0 ]; then
-          SIGNATURE=$(cat /tmp/sign_output.txt | tr -d '\n\r')
-          if [ -n "$SIGNATURE" ]; then
-            echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
-            echo "✅ ZIP signed successfully"
-            echo "🔍 Signature (first 50 chars): ${SIGNATURE:0:50}..."
-          else
-            echo "❌ Signature is empty"
-            exit 1
-          fi
+        if [ -n "$SIGNATURE" ]; then
+          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+          echo "✅ ZIP signed successfully"
+          echo "🔍 Signature: ${SIGNATURE:0:50}..."
         else
-          echo "❌ sign_update failed with exit code $EXIT_CODE"
+          echo "❌ Signature generation failed"
           exit 1
         fi
       id: sign_zip
