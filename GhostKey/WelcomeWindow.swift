@@ -24,7 +24,6 @@ struct WelcomeView: View {
             details: [
                 "Grant Accessibility permission (required)",
                 "Add codes via menu → 'Manage codes…'",
-                "Or edit codes.txt manually",
                 "Press ⌃⌥⌘Y to paste your first code"
             ]
         ),
