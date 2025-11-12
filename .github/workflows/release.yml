@@ -76,6 +76,15 @@ jobs:
       if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🔨 Building GhostKey..."
+        
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Set version in Info.plist before building
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" GhostKey/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" GhostKey/Info.plist
+        
+        echo "✅ Version set to $VERSION in Info.plist"
+        
         xcodebuild clean build \
           -project GhostKey.xcodeproj \
           -scheme GhostKey \
@@ -191,17 +200,23 @@ jobs:
         
         # Sign the ZIP with the private key file
         echo "🔐 Running: sign_update \"$ZIP_FILE\" --ed-key-file \"$KEY_FILE\""
-        SIGNATURE=$(sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE")
+        SIGN_OUTPUT=$(sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE")
         
         # Clean up the key file
         rm -f "$KEY_FILE"
         
+        echo "🔍 sign_update output: $SIGN_OUTPUT"
+        
+        # Extract just the signature value (after the = sign, before any spaces)
+        # Output format is: sparkle:edSignature="SIGNATURE" length=SIZE
+        SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+        
         if [ -n "$SIGNATURE" ]; then
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
           echo "✅ ZIP signed successfully"
-          echo "🔍 Signature: ${SIGNATURE:0:50}..."
+          echo "🔍 Extracted signature: ${SIGNATURE:0:50}..."
         else
-          echo "❌ Signature generation failed"
+          echo "❌ Failed to extract signature from output"
           exit 1
         fi
       id: sign_zip
@@ -268,6 +283,10 @@ jobs:
         echo "💾 Committing appcast changes..."
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Restore Info.plist to avoid committing version changes
+        git checkout GhostKey/Info.plist
+        
         git add appcast.xml
         
         if git diff --staged --quiet; then
