@@ -66,11 +66,40 @@ jobs:
         which sign_update
         sign_update -v || echo "sign_update ready"
     
-    - name: Load Sparkle private key
+    - name: Load and verify Sparkle keys
       if: steps.check_tag.outputs.exists == 'false'
       id: sparkle_keys
       run: |
-        echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
+        PRIVATE_KEY="${{ secrets.SPARKLE_PRIVATE_KEY }}"
+        PUBLIC_KEY_IN_PLIST=$(grep -A 1 "SUPublicEDKey" GhostKey/Info.plist | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | tr -d '[:space:]')
+        
+        echo "🔍 Public key in Info.plist: $PUBLIC_KEY_IN_PLIST"
+        echo "🔍 Private key length: ${#PRIVATE_KEY}"
+        
+        # Create a test file to verify the key pair works
+        echo "test content" > /tmp/test.txt
+        zip /tmp/test.zip /tmp/test.txt
+        
+        # Write private key to file
+        echo "$PRIVATE_KEY" > /tmp/test_key.pem
+        chmod 600 /tmp/test_key.pem
+        
+        # Try to sign the test file
+        echo "🔐 Testing key pair with test file..."
+        TEST_SIG=$(sign_update /tmp/test.zip --ed-key-file /tmp/test_key.pem 2>&1)
+        echo "🔍 Test signature output: $TEST_SIG"
+        
+        if echo "$TEST_SIG" | grep -q "sparkle:edSignature"; then
+          echo "✅ Private key can sign files"
+        else
+          echo "❌ Private key failed to sign test file"
+          echo "Output: $TEST_SIG"
+        fi
+        
+        # Clean up
+        rm -f /tmp/test.txt /tmp/test.zip /tmp/test_key.pem
+        
+        echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
     
     - name: Build app
       if: steps.check_tag.outputs.exists == 'false'
