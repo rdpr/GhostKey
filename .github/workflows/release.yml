@@ -186,8 +186,22 @@ jobs:
       run: |
         echo "📦 Creating ZIP archive..."
         cd ./dist
-        zip -r -y "../GhostKey-${{ steps.version.outputs.version }}.zip" GhostKey.app
+        
+        # Use ditto instead of zip for better compatibility with macOS
         cd ..
+        ditto -c -k --sequesterRsrc --keepParent ./dist/GhostKey.app "GhostKey-${{ steps.version.outputs.version }}.zip"
+        
+        # Verify ZIP was created
+        if [ ! -f "GhostKey-${{ steps.version.outputs.version }}.zip" ]; then
+          echo "❌ ZIP creation failed"
+          exit 1
+        fi
+        
+        # Calculate and store SHA256 before signing
+        SHA_BEFORE=$(shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.zip" | awk '{print $1}')
+        echo "🔍 ZIP SHA256 (before signing): $SHA_BEFORE"
+        echo "$SHA_BEFORE" > zip_sha_before.txt
+        
         echo "✅ ZIP created: GhostKey-${{ steps.version.outputs.version }}.zip"
     
     - name: Install create-dmg
@@ -269,6 +283,19 @@ jobs:
           # Check ZIP file wasn't modified
           ZIP_SIZE=$(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE")
           echo "🔍 ZIP file size: $ZIP_SIZE bytes"
+          
+          # Verify ZIP hash is the same after signing (sign_update doesn't modify the file)
+          SHA_AFTER=$(shasum -a 256 "$ZIP_FILE" | awk '{print $1}')
+          SHA_BEFORE=$(cat zip_sha_before.txt)
+          echo "🔍 ZIP SHA256 (after signing): $SHA_AFTER"
+          echo "🔍 ZIP SHA256 (before signing): $SHA_BEFORE"
+          
+          if [ "$SHA_BEFORE" = "$SHA_AFTER" ]; then
+            echo "✅ ZIP file unchanged by signing (as expected)"
+          else
+            echo "⚠️  ZIP file hash changed during signing!"
+            echo "This shouldn't happen - sign_update only reads the file"
+          fi
         else
           echo "❌ Failed to extract signature from output"
           exit 1
