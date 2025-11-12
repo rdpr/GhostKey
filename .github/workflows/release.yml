@@ -96,17 +96,38 @@ jobs:
       run: |
         PUBLIC_KEY="${{ steps.sparkle_keys.outputs.public_key }}"
         
-        if [ -n "$PUBLIC_KEY" ]; then
+        echo "🔍 Debug: PUBLIC_KEY length = ${#PUBLIC_KEY}"
+        echo "🔍 Debug: PUBLIC_KEY preview = ${PUBLIC_KEY:0:30}..."
+        
+        if [ -n "$PUBLIC_KEY" ] && [ ${#PUBLIC_KEY} -gt 10 ]; then
           echo "🔑 Injecting public key into Info.plist..."
+          
+          # Show Info.plist before
+          echo "📄 Info.plist before injection:"
+          grep -A 1 "SUPublicEDKey" GhostKey/Info.plist || echo "SUPublicEDKey not found (expected)"
           
           # Add the SUPublicEDKey to Info.plist before building
           /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $PUBLIC_KEY" GhostKey/Info.plist 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $PUBLIC_KEY" GhostKey/Info.plist
           
-          echo "✅ Public key injected"
-          echo "Key preview: ${PUBLIC_KEY:0:20}..."
+          # Verify injection
+          echo "📄 Info.plist after injection:"
+          grep -A 1 "SUPublicEDKey" GhostKey/Info.plist || echo "❌ KEY NOT FOUND!"
+          
+          # Also verify using PlistBuddy
+          INJECTED_KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" GhostKey/Info.plist 2>/dev/null || echo "")
+          
+          if [ -n "$INJECTED_KEY" ]; then
+            echo "✅ Public key successfully injected and verified"
+            echo "🔍 Injected key preview: ${INJECTED_KEY:0:30}..."
+          else
+            echo "❌ Public key injection failed!"
+            exit 1
+          fi
         else
-          echo "⚠️  No public key available, skipping injection"
+          echo "❌ No valid public key available (length: ${#PUBLIC_KEY})"
+          echo "⚠️  Build will not have update capability"
+          exit 1
         fi
     
     - name: Build app
