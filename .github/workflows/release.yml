@@ -80,8 +80,11 @@ jobs:
         VERSION="${{ steps.version.outputs.version }}"
         
         # Set version in Info.plist before building
-        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" GhostKey/Info.plist
-        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" GhostKey/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" GhostKey/Info.plist 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" GhostKey/Info.plist
+        
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" GhostKey/Info.plist 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" GhostKey/Info.plist
         
         echo "✅ Version set to $VERSION in Info.plist"
         
