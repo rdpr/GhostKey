@@ -53,6 +53,62 @@ jobs:
       with:
         xcode-version: latest-stable
     
+    - name: Install Sparkle tools
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📥 Installing Sparkle tools..."
+        brew install sparkle
+        echo "✅ Sparkle tools installed"
+    
+    - name: Generate or use Sparkle keys
+      if: steps.check_tag.outputs.exists == 'false'
+      id: sparkle_keys
+      run: |
+        echo "🔐 Setting up Sparkle keys..."
+        
+        # Check if private key exists in secrets
+        if [ -z "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
+          echo "⚠️  SPARKLE_PRIVATE_KEY not found in secrets"
+          echo "⚠️  Generating temporary key pair for this build..."
+          
+          # Generate temporary key pair
+          /opt/homebrew/bin/generate_keys > keys.txt 2>&1 || /usr/local/bin/generate_keys > keys.txt 2>&1 || true
+          
+          if [ -f keys.txt ] && [ -s keys.txt ]; then
+            PRIVATE_KEY=$(cat keys.txt | grep -A 1 "Private key:" | tail -n 1 | tr -d '[:space:]')
+            PUBLIC_KEY=$(cat keys.txt | grep -A 1 "Public key:" | tail -n 1 | tr -d '[:space:]')
+            echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
+            echo "public_key=$PUBLIC_KEY" >> $GITHUB_OUTPUT
+            echo "✅ Generated temporary keys"
+          else
+            echo "❌ Failed to generate keys"
+            echo "private_key=" >> $GITHUB_OUTPUT
+            echo "public_key=" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
+          echo "public_key=${{ secrets.SPARKLE_PUBLIC_KEY }}" >> $GITHUB_OUTPUT
+          echo "✅ Using keys from GitHub Secrets"
+        fi
+    
+    - name: Inject public key into Info.plist
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        PUBLIC_KEY="${{ steps.sparkle_keys.outputs.public_key }}"
+        
+        if [ -n "$PUBLIC_KEY" ]; then
+          echo "🔑 Injecting public key into Info.plist..."
+          
+          # Add the SUPublicEDKey to Info.plist before building
+          /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $PUBLIC_KEY" GhostKey/Info.plist 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $PUBLIC_KEY" GhostKey/Info.plist
+          
+          echo "✅ Public key injected"
+          echo "Key preview: ${PUBLIC_KEY:0:20}..."
+        else
+          echo "⚠️  No public key available, skipping injection"
+        fi
+    
     - name: Build app
       if: steps.check_tag.outputs.exists == 'false'
       run: |
@@ -151,48 +207,12 @@ jobs:
         
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
     
-    - name: Install Sparkle tools
-      if: steps.check_tag.outputs.exists == 'false'
-      run: |
-        echo "📥 Installing Sparkle tools..."
-        brew install sparkle
-        echo "✅ Sparkle tools installed"
-    
     - name: Sign ZIP for Sparkle
       if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🔐 Signing ZIP with EdDSA..."
         
-        # Check if private key exists in secrets
-        if [ -z "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-          echo "⚠️  SPARKLE_PRIVATE_KEY not found in secrets"
-          echo "⚠️  Generating temporary key pair for this build..."
-          echo "⚠️  For production, add your private key to GitHub Secrets"
-          
-          # Generate temporary key pair
-          /opt/homebrew/bin/generate_keys > keys.txt 2>&1 || true
-          
-          # Try alternative path
-          if [ ! -f keys.txt ] || [ ! -s keys.txt ]; then
-            /usr/local/bin/generate_keys > keys.txt 2>&1 || true
-          fi
-          
-          if [ -f keys.txt ] && [ -s keys.txt ]; then
-            PRIVATE_KEY=$(cat keys.txt | grep -A 1 "Private key:" | tail -n 1 | tr -d '[:space:]')
-            PUBLIC_KEY=$(cat keys.txt | grep -A 1 "Public key:" | tail -n 1 | tr -d '[:space:]')
-            echo "public_key=$PUBLIC_KEY" >> $GITHUB_OUTPUT
-            echo "⚠️  Generated temporary keys - DO NOT USE IN PRODUCTION"
-          else
-            echo "❌ Failed to generate keys"
-            PRIVATE_KEY=""
-            PUBLIC_KEY=""
-          fi
-        else
-          PRIVATE_KEY="${{ secrets.SPARKLE_PRIVATE_KEY }}"
-          PUBLIC_KEY="${{ secrets.SPARKLE_PUBLIC_KEY }}"
-          echo "✅ Using keys from GitHub Secrets"
-          echo "public_key=$PUBLIC_KEY" >> $GITHUB_OUTPUT
-        fi
+        PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
         
         # Sign the ZIP if we have a private key
         if [ -n "$PRIVATE_KEY" ]; then
@@ -266,13 +286,6 @@ jobs:
         
         rm -f new_item.xml
         
-        # Update public key in Info.plist if we have one
-        if [ -n "$PUBLIC_KEY" ]; then
-          echo "🔑 Updating public key in Info.plist..."
-          sed -i.bak "s/SPARKLE_PUBLIC_KEY_PLACEHOLDER/$PUBLIC_KEY/g" GhostKey/Info.plist
-          rm -f GhostKey/Info.plist.bak
-        fi
-        
         echo "✅ Appcast updated"
     
     - name: Commit appcast changes
@@ -281,7 +294,7 @@ jobs:
         echo "💾 Committing appcast changes..."
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add appcast.xml GhostKey/Info.plist
+        git add appcast.xml
         
         if git diff --staged --quiet; then
           echo "⚠️  No changes to commit"
