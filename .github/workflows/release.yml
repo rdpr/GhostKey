@@ -136,11 +136,9 @@ jobs:
           fi
         else
           echo "✅ Using keys from GitHub Secrets"
-          echo "🔍 PRIVATE_KEY from secrets length: ${#{{ secrets.SPARKLE_PRIVATE_KEY }}}"
-          echo "🔍 PUBLIC_KEY from secrets length: ${#{{ secrets.SPARKLE_PUBLIC_KEY }}}"
           
           echo "private_key=${{ secrets.SPARKLE_PRIVATE_KEY }}" >> $GITHUB_OUTPUT
-          echo "public_key=${{ secrets.SPARKLE_PUBLIC_KEY }}" >> $GITHUB_OUTPUT
+          echo "public_key=${{ vars.SPARKLE_PUBLIC_KEY }}" >> $GITHUB_OUTPUT
         fi
     
     - name: Inject public key into Info.plist
