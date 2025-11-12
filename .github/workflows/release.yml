@@ -173,9 +173,16 @@ jobs:
             exit 1
           fi
         else
-          echo "❌ No valid public key available (length: ${#PUBLIC_KEY})"
-          echo "⚠️  Build will not have update capability"
-          exit 1
+          echo "⚠️  No valid public key available (length: ${#PUBLIC_KEY})"
+          echo "⚠️  Building without signature verification"
+          echo "⚠️  Updates will still work, but won't be cryptographically verified"
+          echo ""
+          echo "ℹ️  To enable signed updates:"
+          echo "   1. Run: brew install sparkle && generate_keys"
+          echo "   2. Add SPARKLE_PRIVATE_KEY and SPARKLE_PUBLIC_KEY to GitHub Secrets"
+          echo "   3. Re-run this workflow"
+          echo ""
+          echo "📝 Continuing build without public key..."
         fi
     
     - name: Build app
