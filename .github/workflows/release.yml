@@ -176,16 +176,29 @@ jobs:
         echo "🔐 Signing ZIP with EdDSA..."
         
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
+        ZIP_FILE="GhostKey-${{ steps.version.outputs.version }}.zip"
+        
+        # Debug info
+        echo "🔍 ZIP file: $ZIP_FILE"
+        ls -lh "$ZIP_FILE" || echo "❌ ZIP file not found!"
+        echo "🔍 Private key length: ${#PRIVATE_KEY}"
+        echo "🔍 sign_update location: $(which sign_update)"
         
         # Sign the ZIP with the private key
-        SIGNATURE=$(sign_update "GhostKey-${{ steps.version.outputs.version }}.zip" "$PRIVATE_KEY")
+        echo "🔐 Running sign_update..."
+        SIGNATURE=$(sign_update "$ZIP_FILE" "$PRIVATE_KEY" 2>&1)
+        EXIT_CODE=$?
         
-        if [ -n "$SIGNATURE" ]; then
+        echo "🔍 Exit code: $EXIT_CODE"
+        echo "🔍 Output: $SIGNATURE"
+        
+        if [ $EXIT_CODE -eq 0 ] && [ -n "$SIGNATURE" ]; then
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
           echo "✅ ZIP signed successfully"
           echo "🔍 Signature: ${SIGNATURE:0:50}..."
         else
-          echo "❌ Signature generation failed"
+          echo "❌ Signature generation failed with exit code $EXIT_CODE"
+          echo "❌ Error output: $SIGNATURE"
           exit 1
         fi
       id: sign_zip
