@@ -211,20 +211,49 @@ jobs:
       run: |
         VERSION="${{ steps.version.outputs.version }}"
         CHANNEL="${{ steps.version.outputs.channel }}"
+        REPO_URL="https://github.com/${{ github.repository }}"
         
         echo "📝 Generating CHANGELOG for $VERSION ($CHANNEL)..."
         
-        # Generate changelog for current version
-        conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+        # Create a context file for conventional-changelog with version info
+        cat > .changelog-context.json << EOF
+        {
+          "version": "$VERSION",
+          "host": "https://github.com",
+          "owner": "${{ github.repository_owner }}",
+          "repository": "${{ github.event.repository.name }}",
+          "repoUrl": "$REPO_URL",
+          "linkReferences": true
+        }
+        EOF
         
-        # Add channel badge if not stable
+        # Generate changelog with version and links
+        npx conventional-changelog-cli -p angular \
+          -i CHANGELOG.md \
+          -s \
+          --context .changelog-context.json \
+          --release-count 0
+        
+        # Add release link and channel badge to the version header
         if [ "$CHANNEL" != "stable" ]; then
-          # Add a channel indicator at the top of the new entry
-          BADGE="**[$CHANNEL release]**"
-          sed -i "0,/## \[/s//## \[$BADGE\] [/" CHANGELOG.md
+          CHANNEL_BADGE="**[$CHANNEL]** "
+        else
+          CHANNEL_BADGE=""
         fi
         
-        echo "✅ CHANGELOG generated"
+        # Escape special characters in version for regex
+        VERSION_ESCAPED=$(echo "$VERSION" | sed 's/[.]/\\./g')
+        
+        # Find the first version header and enhance it with release link
+        # Use | as delimiter to avoid conflicts with / in URLs
+        # Replace ## [version] with ## [channel badge] [version](release-link)
+        sed -i.bak "0,/^## \[\($VERSION_ESCAPED\)\]/s|^## \[\($VERSION_ESCAPED\)\]|## ${CHANNEL_BADGE}[\1]($REPO_URL/releases/tag/v\1)|" CHANGELOG.md
+        rm -f CHANGELOG.md.bak
+        
+        # Clean up
+        rm -f .changelog-context.json
+        
+        echo "✅ CHANGELOG generated with release link"
     
     - name: Check for changes
       id: check_changes
