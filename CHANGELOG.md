@@ -11,6 +11,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Add unreleased changes here -->
 
+## [1.1.0] - 2025-11-15
+
+### 🎉 Major Release: Full Code Signing & Notarization
+
+This release implements **complete Apple code signing and notarization** for all GitHub releases. The app is now fully trusted by macOS with no workarounds needed!
+
+### ✨ What's New
+
+#### Code Signing & Security
+- **✅ Developer ID Signed**: All releases signed with Apple Developer ID certificate
+- **✅ Notarized by Apple**: Submitted to Apple for malware scanning and approval
+- **✅ Gatekeeper Approved**: No more quarantine flags or security warnings
+- **✅ Sparkle Code Signing**: Updates now use full Apple Code Signing validation
+- **✅ Notifications Work**: System notifications now work reliably in DMG installs
+
+#### User Experience Improvements
+- **No Terminal Commands Required**: Simply download, drag to Applications, and open
+- **No Right-Click Workaround**: Double-click to open like any other Mac app
+- **Smooth Updates**: Sparkle now properly validates code signatures during updates
+- **Professional Distribution**: App meets all Apple security requirements
+
+### 🔧 Technical Changes
+
+#### Build & Release Pipeline
+- Added certificate installation step to GitHub Actions workflows
+- Integrated Apple notarization with App Store Connect API
+- Automated DMG stapling after notarization
+- Switched to `generate_appcast` tool for signed update manifests
+- Added certificate cleanup steps to prevent keychain leaks
+
+#### Code Changes
+- Removed `SUEnableInstallerLauncherService` workaround from `Info.plist`
+- Enabled code signing in both release and PR build workflows
+- Updated `xcodebuild` parameters to use Developer ID certificate
+- Added notarization step with 30-minute timeout
+- Implemented keychain creation and cleanup for CI builds
+
+### 📝 Documentation Updates
+
+#### README.md
+- ✅ Removed "Important: First Launch" xattr instructions
+- ✅ Removed "Known Limitation: Notifications" section
+- ✅ Updated installation instructions to reflect signed/notarized status
+- ✅ Simplified troubleshooting sections
+
+#### DEVELOPMENT.md
+- ✅ Added comprehensive "Code Signing and Distribution" section
+- ✅ Documented all required GitHub secrets and variables
+- ✅ Updated notification troubleshooting (removed unsigned app workarounds)
+- ✅ Added manual code signing instructions for developers
+- ✅ Explained GitHub Actions signing workflow
+
+### 🔐 Required Configuration
+
+The following secrets/variables are configured in GitHub Actions:
+- `APPLE_CERTIFICATE_BASE64`: Base64-encoded .p12 Developer ID certificate
+- `APPLE_CERTIFICATE_PASSWORD`: Certificate password
+- `APPLE_APP_STORE_CONNECT_API_KEY`: App Store Connect API key (.p8 file)
+- `APPLE_APP_STORE_CONNECT_API_KEY_ID`: API Key ID
+- `APPLE_APP_STORE_CONNECT_API_ISSUER_ID`: Issuer ID (UUID)
+- `APPLE_TEAM_ID`: 10-character Team ID
+- `APPLE_CODE_SIGN_IDENTITY`: Full certificate identity string
+- `SPARKLE_PRIVATE_KEY`: EdDSA private key for update signing
+
+### 🎯 Breaking Changes
+
+**For existing users upgrading from unsigned builds (< 1.1.0):**
+- Updates will work seamlessly via Sparkle
+- Old installations can be safely replaced
+- No migration steps required
+
+**For contributors:**
+- PR builds now require code signing (handled automatically in CI)
+- Local builds still use adhoc signing from Xcode (no changes needed)
+
+### 🐛 Bug Fixes
+- Fixed Sparkle update signature validation errors
+- Fixed "improperly signed" errors during updates
+- Fixed app being blocked by Gatekeeper on first launch
+- Fixed notifications not registering in DMG installs
+
+### 📦 Distribution
+All releases from this version forward are:
+- Signed with Developer ID Application certificate
+- Notarized by Apple's automated scanning service
+- Stapled with notarization ticket
+- Fully compatible with macOS Gatekeeper
+- Ready for seamless installation and updates
+
+---
+
+**Upgrade Note**: This is a major milestone! The app is now a fully trusted macOS application with no security warnings or workarounds. Simply download and enjoy! 🎊
+
 ## [1.0.0-beta] - 2025-11-11
 
 ### 🎯 Breaking Changes

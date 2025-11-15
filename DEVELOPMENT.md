@@ -86,26 +86,17 @@ To test:
 ### Notifications
 Notifications require explicit permission and proper app registration:
 
-**Debug builds (from Xcode):**
-- Usually work immediately
-- Check Console for detailed logs
-
-**Release builds (DMG):**
-- May not appear in System Settings → Notifications (unsigned app limitation)
-- App needs to be in `/Applications` folder
-- Workaround: Restart Notification Center after first launch:
-  ```bash
-  killall NotificationCenter
-  ```
-- Check Console.app for logs starting with "🔔 Setting up notifications..."
-- Test notification sent on first authorization grant
-
 **To test:**
-1. Install DMG to `/Applications`
+1. Install app to `/Applications`
 2. Launch app
-3. Check Console.app for notification setup logs
-4. Look for bundle ID and authorization status
+3. Grant notification permission when prompted
+4. Check Console.app for logs starting with "🔔 Setting up notifications..."
 5. Should see "✅ Notification authorization GRANTED" and test notification
+
+**Troubleshooting:**
+- Check System Settings → Notifications → GhostKey (or GhostKey Dev)
+- Look for authorization logs in Console.app
+- Test notification is sent on first authorization grant
 
 ### Hotkeys
 Hotkeys are stored in UserDefaults with fallback to defaults:
@@ -128,10 +119,11 @@ GhostKey uses the Sparkle framework for automatic updates:
 
 ## Common Issues
 
-### "Notifications don't work in DMG build"
+### "Notifications don't work"
 - Check notification permissions in System Settings
 - Look for authorization logs in Console.app
 - Verify the app requested permission on first launch
+- Ensure app is installed in /Applications folder
 
 ### "Hotkey doesn't work after reset"
 - Check console for "Invalid hotkey settings detected"
@@ -190,70 +182,64 @@ GhostKeyApp.swift        - Entry point, lifecycle management
 - Can be reopened from menu
 - Leads to ManageCodesWindow on completion
 
-## Notification Issues (Unsigned Apps)
+## Code Signing and Distribution
 
-### The Problem
-macOS returns `UNErrorCodeNotificationsNotAllowed` (Error Code=1) for unsigned apps, regardless of entitlements:
+### GitHub Releases
+All releases from GitHub Actions are **code-signed and notarized** by Apple:
 
+**How it works:**
+1. GitHub Actions installs the Developer ID certificate from secrets
+2. Xcode builds and signs the app with the certificate
+3. The DMG is submitted to Apple for notarization
+4. Notarization ticket is stapled to the DMG
+5. Sparkle's `generate_appcast` tool signs the update ZIP
+
+**Required secrets/variables in GitHub:**
+- `APPLE_CERTIFICATE_BASE64`: Base64-encoded .p12 certificate
+- `APPLE_CERTIFICATE_PASSWORD`: Password for the certificate
+- `APPLE_APP_STORE_CONNECT_API_KEY`: App Store Connect API key (.p8 file, base64)
+- `APPLE_APP_STORE_CONNECT_API_KEY_ID`: API Key ID
+- `APPLE_APP_STORE_CONNECT_API_ISSUER_ID`: Issuer ID
+- `APPLE_TEAM_ID`: 10-character Team ID
+- `APPLE_CODE_SIGN_IDENTITY`: Certificate identity string
+- `SPARKLE_PRIVATE_KEY`: EdDSA private key for signing updates
+
+### Local Development Builds
+**Debug builds (from Xcode):**
+- Automatically signed by Xcode with adhoc signature
+- Bundle ID: `com.rdpr.GhostKey.debug`
+- Display name: "GhostKey Dev"
+- Full functionality including notifications
+
+**Release builds (from Xcode):**
+- Can be signed with Developer ID if certificate is installed
+- Bundle ID: `com.rdpr.GhostKey`
+- Display name: "GhostKey"
+
+### Manual Code Signing (Optional)
+If you have an Apple Developer account and want to manually sign:
+
+```bash
+# Sign the app
+codesign --sign "Developer ID Application: Your Name (TEAMID)" \
+  --deep --force --options runtime \
+  GhostKey.app
+
+# Verify signature
+codesign -dv --verbose=4 GhostKey.app
+codesign --verify --deep --strict GhostKey.app
+
+# Notarize (requires App Store Connect API key)
+xcrun notarytool submit GhostKey.dmg \
+  --key ~/.private_keys/AuthKey_KEYID.p8 \
+  --key-id YOUR_KEY_ID \
+  --issuer YOUR_ISSUER_ID \
+  --wait
+
+# Staple notarization ticket
+xcrun stapler staple GhostKey.dmg
+xcrun stapler validate GhostKey.dmg
 ```
-[com.rdpr.GhostKey] Requested authorization [ didGrant: 0 hasError: 1 ]
-❌ Notification authorization error: Error Domain=UNErrorDomain Code=1 "(null)"
-```
-
-### Root Cause
-- **Code signing required**: macOS Notification Center requires apps to be properly signed
-- **Entitlements alone aren't enough**: Even with `GhostKey.entitlements`, unsigned apps are rejected
-- **Security feature**: This prevents malicious apps from spamming notifications
-- **No workarounds**: Restarting Notification Center, clearing preferences, etc. don't work reliably
-
-### Solutions
-
-#### For Development (Local Builds)
-✅ **Works perfectly** - Xcode signs debug builds automatically:
-1. Build and run from Xcode (⌘R)
-2. Notifications work immediately
-3. Bundle ID: `com.rdpr.GhostKey.debug` (Dev) or `com.rdpr.GhostKey` (Release)
-
-#### For Distribution (DMG/ZIP)
-❌ **Doesn't work** unless you:
-1. **Sign with Apple Developer ID** ($99/year)
-   ```bash
-   codesign --sign "Developer ID Application: Your Name" GhostKey.app
-   ```
-2. **Notarize the app** (submit to Apple for scanning)
-   ```bash
-   xcrun notarytool submit GhostKey.dmg --apple-id ... --password ...
-   ```
-3. **Staple the notarization** (attach approval to app)
-   ```bash
-   xcrun stapler staple GhostKey.app
-   ```
-
-### Testing Notifications
-
-1. **Clean state** (always start fresh):
-   ```bash
-   ./development-scripts/complete-reset.sh
-   ```
-
-2. **Build and run** from Xcode (not from DMG)
-
-3. **Check Console.app**:
-   - Filter: "GhostKey"
-   - Look for: "✅ Notification authorization GRANTED"
-   - Error: "UNErrorDomain Code=1" = unsigned app rejected
-
-4. **Verify in System Settings**:
-   - System Settings → Notifications
-   - Should see "GhostKey Dev" (Debug) or "GhostKey" (Release)
-   - If missing = app not registered (unsigned or error)
-
-### Why GitHub Releases Don't Have Notifications
-The automated releases are **unsigned and unnotarized** because:
-- No Apple Developer certificate in GitHub Actions
-- Would require storing signing credentials in repo (security risk)
-- $99/year per developer account
-- Users who need notifications should build from source
 
 ## Tips
 
@@ -261,5 +247,5 @@ The automated releases are **unsigned and unnotarized** because:
 - Test DMG installs separately from Xcode runs
 - Keep Debug and Release versions side-by-side for comparison
 - Check Console.app for detailed logs when debugging issues
-- **Notifications only work in local builds** (from Xcode)
+- All GitHub releases are fully signed and notarized
 

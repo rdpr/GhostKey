@@ -53,6 +53,48 @@ jobs:
       with:
         xcode-version: latest-stable
     
+    - name: Install Apple Certificate
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔐 Installing Developer ID certificate..."
+        
+        # Decode certificate
+        echo "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+        
+        # Create temporary keychain
+        KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+        KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+        
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        
+        # Import certificate to keychain
+        security import certificate.p12 \
+          -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" \
+          -k "$KEYCHAIN_PATH" \
+          -T /usr/bin/codesign \
+          -T /usr/bin/security
+        
+        # Set keychain as default
+        security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+        security default-keychain -s "$KEYCHAIN_PATH"
+        
+        # Enable codesigning from a non user interactive shell
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        
+        # Clean up certificate file
+        rm -f certificate.p12
+        
+        # Store keychain path for cleanup
+        echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+        echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
+        
+        echo "✅ Certificate installed successfully"
+        
+        # Verify certificate
+        security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+    
     - name: Install Sparkle CLI tools
       if: steps.check_tag.outputs.exists == 'false'
       run: |
@@ -125,9 +167,9 @@ jobs:
           -scheme GhostKey \
           -configuration Release \
           -derivedDataPath ./build \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_STYLE=Manual \
+          CODE_SIGN_IDENTITY="${{ vars.APPLE_CODE_SIGN_IDENTITY }}" \
+          DEVELOPMENT_TEAM="${{ vars.APPLE_TEAM_ID }}" \
           MARKETING_VERSION="$VERSION" \
           CURRENT_PROJECT_VERSION="$VERSION"
         
@@ -171,15 +213,30 @@ jobs:
         echo "🔧 Setting executable permissions..."
         chmod +x ./dist/GhostKey.app/Contents/MacOS/GhostKey
         
-        # Strip ALL code signatures to ensure consistent unsigned state
-        echo "🔧 Removing all code signatures..."
-        codesign --remove-signature ./dist/GhostKey.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle || true
-        codesign --remove-signature ./dist/GhostKey.app/Contents/Frameworks/Sparkle.framework || true
-        codesign --remove-signature ./dist/GhostKey.app || true
+        echo "✅ App bundle prepared"
+    
+    - name: Sign app bundle with Hardened Runtime
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔐 Signing app bundle with Hardened Runtime..."
         
-        # Verify signatures are removed
-        echo "🔍 Verifying code signature status..."
-        codesign -dv ./dist/GhostKey.app 2>&1 || echo "✅ App is unsigned (as expected)"
+        # Sign with deep signing to cover all nested binaries (Sparkle framework, etc.)
+        codesign --sign "${{ vars.APPLE_CODE_SIGN_IDENTITY }}" \
+          --deep \
+          --force \
+          --options runtime \
+          --timestamp \
+          --verbose \
+          ./dist/GhostKey.app
+        
+        echo "✅ App signed with Hardened Runtime"
+        
+        # Verify code signature
+        echo "🔍 Verifying code signature..."
+        codesign -dv --verbose=4 ./dist/GhostKey.app 2>&1
+        codesign --verify --deep --strict --verbose=2 ./dist/GhostKey.app
+        
+        echo "✅ Signature verified"
         
         # Verify bundle structure
         echo "📋 Verifying bundle structure..."
@@ -192,7 +249,7 @@ jobs:
           exit 1
         fi
         
-        echo "✅ App bundle prepared and verified"
+        echo "✅ App bundle ready for notarization"
     
     - name: Create ZIP archive
       if: steps.check_tag.outputs.exists == 'false'
@@ -253,97 +310,117 @@ jobs:
         
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
     
-    - name: Sign ZIP and create appcast entry
+    - name: Notarize DMG
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        echo "🔐 Signing ZIP and creating appcast..."
+        echo "🔐 Notarizing DMG with Apple..."
         
-        PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
-        ZIP_FILE="GhostKey-${{ steps.version.outputs.version }}.zip"
-        KEY_FILE="/tmp/sparkle_private_key.pem"
+        DMG_FILE="GhostKey-${{ steps.version.outputs.version }}.dmg"
+        
+        # Write API key to temporary file
+        API_KEY_FILE="/tmp/api_key.p8"
+        echo "${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}" > "$API_KEY_FILE"
+        chmod 600 "$API_KEY_FILE"
+        
+        # Store credentials for notarytool
+        xcrun notarytool store-credentials "notarytool-profile" \
+          --key "$API_KEY_FILE" \
+          --key-id "${{ vars.APPLE_APP_STORE_CONNECT_API_KEY_ID }}" \
+          --issuer "${{ vars.APPLE_APP_STORE_CONNECT_API_ISSUER_ID }}"
+        
+        rm -f "$API_KEY_FILE"
+        
+        echo "✅ Credentials stored"
+        
+        # Submit for notarization
+        echo "📤 Submitting DMG for notarization..."
+        xcrun notarytool submit "$DMG_FILE" \
+          --keychain-profile "notarytool-profile" \
+          --wait \
+          --timeout 30m \
+          2>&1 | tee notarization_log.txt
+        
+        # Extract submission ID for debugging
+        SUBMISSION_ID=$(grep "id:" notarization_log.txt | head -1 | awk '{print $2}')
+        echo "📋 Submission ID: $SUBMISSION_ID"
+        
+        # Check status
+        if grep -q "status: Accepted" notarization_log.txt; then
+          echo "✅ Notarization successful"
+        else
+          echo "❌ Notarization failed"
+          xcrun notarytool log "$SUBMISSION_ID" --keychain-profile "notarytool-profile" || true
+          exit 1
+        fi
+        
+        rm -f notarization_log.txt
+    
+    - name: Staple DMG
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📎 Stapling notarization ticket to DMG..."
+        
+        DMG_FILE="GhostKey-${{ steps.version.outputs.version }}.dmg"
+        
+        xcrun stapler staple "$DMG_FILE"
+        
+        # Verify stapling
+        xcrun stapler validate "$DMG_FILE"
+        
+        echo "✅ DMG stapled successfully"
+    
+    - name: Generate appcast with Sparkle
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📝 Generating appcast with Sparkle..."
+        
         VERSION="${{ steps.version.outputs.version }}"
+        ZIP_FILE="GhostKey-${VERSION}.zip"
+        PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
+        KEY_FILE="/tmp/sparkle_private_key.pem"
         
         # Write private key to temporary file
         echo -n "$PRIVATE_KEY" > "$KEY_FILE"
         chmod 600 "$KEY_FILE"
         
-        # Sign the ZIP
-        echo "🔐 Signing $ZIP_FILE..."
-        sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE" > /tmp/signature_output.txt
+        # Create archives directory for generate_appcast
+        mkdir -p archives
+        cp "$ZIP_FILE" archives/
         
-        # Extract signature (format: sparkle:edSignature="..." length="...")
-        SIGNATURE=$(grep -o 'sparkle:edSignature="[^"]*"' /tmp/signature_output.txt | sed 's/sparkle:edSignature="//;s/"//')
-        ZIP_SIZE=$(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE")
+        # Generate appcast using Sparkle's tool
+        echo "🔐 Running generate_appcast..."
+        generate_appcast \
+          --ed-key-file "$KEY_FILE" \
+          --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/" \
+          --link "https://github.com/rdpr/GhostKey" \
+          --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
+          archives
         
-        echo "✅ Signature: ${SIGNATURE:0:50}..."
-        echo "✅ Size: $ZIP_SIZE bytes"
-        
-        # Get app version from Info.plist in the ZIP
-        unzip -q "$ZIP_FILE" "GhostKey.app/Contents/Info.plist" -d /tmp/extract
-        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /tmp/extract/GhostKey.app/Contents/Info.plist)
-        MIN_OS=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" /tmp/extract/GhostKey.app/Contents/Info.plist 2>/dev/null || echo "14.0")
-        rm -rf /tmp/extract
-        
-        echo "✅ App version: $APP_VERSION"
-        echo "✅ Min OS: $MIN_OS"
-        
-        # Create appcast entry
-        PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
-        DOWNLOAD_URL="https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/GhostKey-${VERSION}.zip"
-        
-        # Create new item XML using echo
-        echo "            <item>" > new_item.xml
-        echo "                <title>Version ${APP_VERSION}</title>" >> new_item.xml
-        echo "                <link>https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}</link>" >> new_item.xml
-        echo "                <sparkle:version>${APP_VERSION}</sparkle:version>" >> new_item.xml
-        echo "                <sparkle:shortVersionString>${APP_VERSION}</sparkle:shortVersionString>" >> new_item.xml
-        echo "                <description><![CDATA[" >> new_item.xml
-        echo "                    <h2>GhostKey ${APP_VERSION}</h2>" >> new_item.xml
-        echo "                    <p>See <a href=\"https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}\">release notes</a> for details.</p>" >> new_item.xml
-        echo "                ]]></description>" >> new_item.xml
-        echo "                <pubDate>${PUBDATE}</pubDate>" >> new_item.xml
-        echo "                <enclosure url=\"${DOWNLOAD_URL}\"" >> new_item.xml
-        echo "                           sparkle:version=\"${APP_VERSION}\"" >> new_item.xml
-        echo "                           sparkle:shortVersionString=\"${APP_VERSION}\"" >> new_item.xml
-        echo "                           sparkle:edSignature=\"${SIGNATURE}\"" >> new_item.xml
-        echo "                           length=\"${ZIP_SIZE}\"" >> new_item.xml
-        echo "                           type=\"application/octet-stream\"" >> new_item.xml
-        echo "                           sparkle:os=\"macos\" />" >> new_item.xml
-        echo "                <sparkle:minimumSystemVersion>${MIN_OS}</sparkle:minimumSystemVersion>" >> new_item.xml
-        echo "            </item>" >> new_item.xml
-        
-        # Merge with existing appcast
-        if [ -f "appcast.xml" ]; then
+        # Move generated appcast and merge with existing
+        if [ -f "appcast.xml" ] && [ -f "archives/appcast.xml" ]; then
+          echo "📋 Merging with existing appcast..."
+          
+          # Extract new item from generated appcast
+          sed -n '/<item>/,/<\/item>/p' archives/appcast.xml > new_item.xml
+          
+          # Insert new item into existing appcast (after <channel>)
           awk '/<channel>/{print; print "        <!-- Auto-generated by GitHub Actions -->"; while(getline < "new_item.xml") print; next}1' appcast.xml > appcast_new.xml
           mv appcast_new.xml appcast.xml
+          rm -f new_item.xml
+        elif [ -f "archives/appcast.xml" ]; then
+          echo "📋 Using generated appcast..."
+          mv archives/appcast.xml appcast.xml
         else
-          # Create new appcast using echo
-          echo '<?xml version="1.0" encoding="utf-8"?>' > appcast.xml
-          echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">' >> appcast.xml
-          echo '    <channel>' >> appcast.xml
-          echo '        <title>GhostKey Updates</title>' >> appcast.xml
-          echo '        <link>https://github.com/rdpr/GhostKey</link>' >> appcast.xml
-          echo '        <description>Most recent updates to GhostKey</description>' >> appcast.xml
-          echo '        <language>en</language>' >> appcast.xml
-          echo '        <!-- Auto-generated by GitHub Actions -->' >> appcast.xml
-          cat new_item.xml >> appcast.xml
-          echo '    </channel>' >> appcast.xml
-          echo '</rss>' >> appcast.xml
+          echo "❌ Failed to generate appcast"
+          exit 1
         fi
         
-        rm -f new_item.xml "$KEY_FILE" /tmp/signature_output.txt
+        # Clean up
+        rm -rf archives "$KEY_FILE"
         
         echo "✅ Appcast updated"
-        echo "📋 New entry:"
-        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -15
-        
-        # Verify the ZIP can be extracted
-        echo "🔍 Verifying ZIP integrity..."
-        unzip -t "$ZIP_FILE" || echo "⚠️ ZIP verification failed"
-        
-        # Show ZIP contents
-        echo "📋 ZIP contents:"
-        unzip -l "$ZIP_FILE" | head -20
+        echo "📋 Latest entry:"
+        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -20
     
     - name: Commit appcast changes
       if: steps.check_tag.outputs.exists == 'false'
@@ -391,33 +468,7 @@ jobs:
         1. **DMG (Recommended)**: Download `GhostKey-${{ steps.version.outputs.version }}.dmg`, open it, and drag GhostKey to your Applications folder
         2. **ZIP**: Download `GhostKey-${{ steps.version.outputs.version }}.zip`, extract it, and move GhostKey.app to your Applications folder
         
-        ### 🔒 Important: Opening the App
-        
-        This build is **not code-signed or notarized**. macOS Gatekeeper will block it by default.
-        
-        **Required step to open the app**:
-        
-        Open Terminal and run this command:
-        ```bash
-        xattr -d com.apple.quarantine /Applications/GhostKey.app
-        ```
-        
-        Then double-click GhostKey.app to open it normally.
-        
-        > **Note**: This removes the quarantine flag that macOS adds to downloaded apps. You only need to do this once.
-        
-        ### ⚠️ Known Limitation: Notifications
-        
-        **System notifications will NOT work** in this unsigned build. macOS requires apps to be code-signed to register for notifications.
-        
-        **If you need notifications**, you must build from source:
-        1. Clone the repository
-        2. Open `GhostKey.xcodeproj` in Xcode
-        3. Build and run (⌘R)
-        
-        Local builds are automatically signed by Xcode and have full notification support.
-        
-        See [DEVELOPMENT.md](https://github.com/rdpr/ghostkey/blob/main/DEVELOPMENT.md#notification-issues-unsigned-apps) for details.
+        **This app is code-signed and notarized by Apple.** You can open it directly—no Terminal commands needed!
         
         ### ✅ Checksums
         
@@ -470,6 +521,18 @@ jobs:
           GhostKey-${{ steps.version.outputs.version }}.dmg.sha256
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Cleanup keychain
+      if: always() && steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🧹 Cleaning up keychain..."
+        
+        if [ -n "$KEYCHAIN_PATH" ]; then
+          security delete-keychain "$KEYCHAIN_PATH" || true
+          echo "✅ Keychain deleted"
+        else
+          echo "⚠️  No keychain to clean up"
+        fi
     
     - name: Release summary
       if: steps.check_tag.outputs.exists == 'false'
