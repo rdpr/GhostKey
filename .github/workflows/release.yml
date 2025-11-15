@@ -326,6 +326,14 @@ jobs:
         echo "✅ Appcast updated"
         echo "📋 New entry:"
         sed -n '/<item>/,/<\/item>/p' appcast.xml | head -15
+        
+        # Verify the ZIP can be extracted
+        echo "🔍 Verifying ZIP integrity..."
+        unzip -t "$ZIP_FILE" || echo "⚠️ ZIP verification failed"
+        
+        # Show ZIP contents
+        echo "📋 ZIP contents:"
+        unzip -l "$ZIP_FILE" | head -20
     
     - name: Commit appcast changes
       if: steps.check_tag.outputs.exists == 'false'
