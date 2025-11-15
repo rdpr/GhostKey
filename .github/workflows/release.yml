@@ -6,8 +6,6 @@ on:
       - main
       - beta
       - dev
-    paths-ignore:
-      - '.gitignore'
 
 permissions:
   contents: write
