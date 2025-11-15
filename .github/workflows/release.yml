@@ -61,9 +61,12 @@ jobs:
         curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o sparkle.tar.xz
         tar -xf sparkle.tar.xz
         sudo cp -f bin/sign_update /usr/local/bin/
+        sudo cp -f bin/generate_appcast /usr/local/bin/
         sudo chmod +x /usr/local/bin/sign_update
+        sudo chmod +x /usr/local/bin/generate_appcast
         echo "✅ Sparkle CLI tools installed"
         which sign_update
+        which generate_appcast
         sign_update -v || echo "sign_update ready"
     
     - name: Load and verify Sparkle keys
@@ -240,123 +243,58 @@ jobs:
         
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
     
-    - name: Sign ZIP for Sparkle
+    - name: Generate appcast with Sparkle
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        echo "🔐 Signing ZIP with EdDSA..."
+        echo "📝 Generating appcast with Sparkle..."
         
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
-        ZIP_FILE="GhostKey-${{ steps.version.outputs.version }}.zip"
         KEY_FILE="/tmp/sparkle_private_key.pem"
-        
-        # Debug info
-        echo "🔍 ZIP file: $ZIP_FILE"
-        ls -lh "$ZIP_FILE"
-        echo "🔍 Private key length: ${#PRIVATE_KEY}"
         
         # Write private key to temporary file
         echo "$PRIVATE_KEY" > "$KEY_FILE"
         chmod 600 "$KEY_FILE"
-        echo "✅ Private key written to temporary file"
         
-        # Sign the ZIP with the private key file
-        echo "🔐 Running: sign_update \"$ZIP_FILE\" --ed-key-file \"$KEY_FILE\""
-        SIGN_OUTPUT=$(sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE")
+        # Create archives directory for generate_appcast
+        mkdir -p archives
+        cp "GhostKey-${{ steps.version.outputs.version }}.zip" archives/
         
-        # Clean up the key file
-        rm -f "$KEY_FILE"
+        # Generate appcast using Sparkle's official tool
+        echo "🔐 Running generate_appcast..."
+        generate_appcast \
+          --ed-key-file "$KEY_FILE" \
+          --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${{ steps.version.outputs.version }}/" \
+          --link "https://github.com/rdpr/GhostKey" \
+          --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
+          archives
         
-        echo "🔍 sign_update output: $SIGN_OUTPUT"
-        
-        # Extract just the signature value (after the = sign, before any spaces)
-        # Output format is: sparkle:edSignature="SIGNATURE" length=SIZE
-        SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
-        
-        if [ -n "$SIGNATURE" ]; then
-          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
-          echo "✅ ZIP signed successfully"
-          echo "🔍 Extracted signature: ${SIGNATURE:0:50}..."
-          
-          # Verify the signature can be validated (optional check)
-          echo "🔍 Signature length: ${#SIGNATURE}"
-          
-          # Check ZIP file wasn't modified
-          ZIP_SIZE=$(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE")
-          echo "🔍 ZIP file size: $ZIP_SIZE bytes"
-          
-          # Verify ZIP hash is the same after signing (sign_update doesn't modify the file)
-          SHA_AFTER=$(shasum -a 256 "$ZIP_FILE" | awk '{print $1}')
-          SHA_BEFORE=$(cat zip_sha_before.txt)
-          echo "🔍 ZIP SHA256 (after signing): $SHA_AFTER"
-          echo "🔍 ZIP SHA256 (before signing): $SHA_BEFORE"
-          
-          if [ "$SHA_BEFORE" = "$SHA_AFTER" ]; then
-            echo "✅ ZIP file unchanged by signing (as expected)"
+        # Move generated appcast to root
+        if [ -f "archives/appcast.xml" ]; then
+          # If we have an existing appcast, merge the new entry
+          if [ -f "appcast.xml" ]; then
+            echo "📝 Merging with existing appcast..."
+            # Extract the new item from generated appcast
+            NEW_ITEM=$(sed -n '/<item>/,/<\/item>/p' archives/appcast.xml)
+            # Insert at the beginning of our existing appcast
+            awk -v item="$NEW_ITEM" '/<channel>/ {print; print item; next} 1' appcast.xml > appcast_new.xml
+            mv appcast_new.xml appcast.xml
           else
-            echo "⚠️  ZIP file hash changed during signing!"
-            echo "This shouldn't happen - sign_update only reads the file"
+            # No existing appcast, use the generated one
+            cp archives/appcast.xml appcast.xml
           fi
+          echo "✅ Appcast generated successfully"
         else
-          echo "❌ Failed to extract signature from output"
+          echo "❌ generate_appcast failed"
           exit 1
         fi
-      id: sign_zip
-    
-    - name: Update appcast.xml
-      if: steps.check_tag.outputs.exists == 'false'
-      run: |
-        echo "📝 Updating appcast.xml..."
         
-        VERSION="${{ steps.version.outputs.version }}"
-        SIGNATURE="${{ steps.sign_zip.outputs.signature }}"
-        DOWNLOAD_URL="https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/GhostKey-${VERSION}.zip"
-        ZIP_SIZE=$(stat -f%z "GhostKey-${VERSION}.zip" 2>/dev/null || stat -c%s "GhostKey-${VERSION}.zip")
-        PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+        # Clean up
+        rm -f "$KEY_FILE"
+        rm -rf archives
         
-        # Create new item entry
-        cat > new_item.xml << EOF
-        <item>
-            <title>Version ${VERSION}</title>
-            <sparkle:version>${VERSION}</sparkle:version>
-            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-            <link>https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}</link>
-            <sparkle:releaseNotesLink>https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}</sparkle:releaseNotesLink>
-            <pubDate>${PUBDATE}</pubDate>
-            <enclosure 
-                url="${DOWNLOAD_URL}"
-                sparkle:version="${VERSION}"
-                sparkle:shortVersionString="${VERSION}"
-                length="${ZIP_SIZE}"
-                type="application/octet-stream"
-                sparkle:edSignature="${SIGNATURE}"
-            />
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-        </item>
-        EOF
-        
-        # Insert new item at the top of the channel
-        if [ -f appcast.xml ]; then
-          # Use awk to insert after <channel> tag
-          awk '/<channel>/ {print; getline; print "        <!-- Auto-generated by GitHub Actions -->"; while (getline < "new_item.xml") print; next} 1' appcast.xml > appcast_new.xml
-          mv appcast_new.xml appcast.xml
-        else
-          # Create new appcast if it doesn't exist
-          echo '<?xml version="1.0" encoding="utf-8"?>' > appcast.xml
-          echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">' >> appcast.xml
-          echo '    <channel>' >> appcast.xml
-          echo '        <title>GhostKey Updates</title>' >> appcast.xml
-          echo '        <link>https://github.com/rdpr/GhostKey</link>' >> appcast.xml
-          echo '        <description>Most recent updates to GhostKey</description>' >> appcast.xml
-          echo '        <language>en</language>' >> appcast.xml
-          echo '        <!-- Auto-generated by GitHub Actions -->' >> appcast.xml
-          cat new_item.xml >> appcast.xml
-          echo '    </channel>' >> appcast.xml
-          echo '</rss>' >> appcast.xml
-        fi
-        
-        rm -f new_item.xml
-        
-        echo "✅ Appcast updated"
+        # Show generated appcast entry for debugging
+        echo "📋 Generated appcast entry:"
+        grep -A 20 "<item>" appcast.xml | head -25
     
     - name: Commit appcast changes
       if: steps.check_tag.outputs.exists == 'false'
