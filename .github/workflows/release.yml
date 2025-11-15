@@ -40,8 +40,8 @@ jobs:
         LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
         
         if [ -z "$LATEST_STABLE_TAG" ]; then
-          # No stable tags found, start from 0.1.0
-          CURRENT_VERSION="0.1.0"
+          # No stable tags found, start from 1.0.0
+          CURRENT_VERSION="1.0.0"
           echo "📦 No previous stable release found, starting from $CURRENT_VERSION"
         else
           CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
