@@ -1,8 +1,8 @@
-name: Auto-Generate CHANGELOG
+name: PR Validation & CHANGELOG
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened]
     branches:
       - main
       - beta
@@ -13,10 +13,95 @@ permissions:
   pull-requests: write
 
 jobs:
-  generate-changelog:
+  validate-and-generate:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Validate PR title
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          chore
+          ci
+          build
+          revert
+        requireScope: false
+        subjectPattern: ^(?![A-Z]).+$
+        subjectPatternError: |
+          The subject "{subject}" found in the pull request title "{title}"
+          didn't match the configured pattern. Please ensure that the subject
+          doesn't start with an uppercase character.
+        ignoreLabels: |
+          dependencies
+          bot
+        validateSingleCommit: false
+        validateSingleCommitMatchesPrTitle: false
+    
+    - name: Comment on invalid PR title
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ❌ Invalid PR Title
+
+          Your PR title doesn't follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+          ### Required Format
+          \`\`\`
+          <type>(<scope>): <description>
+          <type>(<scope>)!: <breaking change description>
+          \`\`\`
+
+          ### Valid Types
+          - **feat**: A new feature
+          - **fix**: A bug fix
+          - **docs**: Documentation changes
+          - **style**: Code style changes (formatting, etc.)
+          - **refactor**: Code refactoring
+          - **perf**: Performance improvements
+          - **test**: Adding or updating tests
+          - **chore**: Maintenance tasks
+          - **ci**: CI/CD changes
+          - **build**: Build system changes
+          - **revert**: Reverting a previous commit
+
+          ### Examples
+          - \`feat: add dark mode support\`
+          - \`fix: resolve crash on startup\`
+          - \`docs: update installation guide\`
+          - \`feat(ui): implement new welcome screen\`
+          - \`fix(auth): correct token validation\`
+          - \`feat!: redesign entire UI (breaking change)\`
+          - \`fix(api)!: change response format (breaking)\`
+
+          ### Breaking Changes
+          - Add \`!\` after the type/scope to indicate a breaking change
+          - Example: \`feat!: breaking change\` or \`feat(scope)!: breaking change\`
+          - The \`!\` is placed before the \`:\`
+
+          ### Rules
+          - Scope is optional (e.g., \`feat: ...\` or \`feat(scope): ...\`)
+          - Description should start with lowercase
+          - Use present tense ("add" not "added")
+          - Be concise and descriptive
+
+          Please update your PR title to match this format. The check will automatically re-run.`
+          })
+    
     - name: Checkout PR branch
       uses: actions/checkout@v4
       with:
@@ -36,8 +121,10 @@ jobs:
       id: version
       run: |
         BRANCH="${{ github.base_ref }}"
+        PR_TITLE="${{ github.event.pull_request.title }}"
         
         echo "🎯 Target branch: $BRANCH"
+        echo "📝 PR Title: $PR_TITLE"
         
         # Fetch all tags
         git fetch --tags
@@ -46,50 +133,47 @@ jobs:
         LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
         
         if [ -z "$LATEST_STABLE_TAG" ]; then
-          # No stable tags found, start from 1.0.0
-          CURRENT_VERSION="1.0.0"
-          echo "📦 No previous stable release found, starting from $CURRENT_VERSION"
+          # No stable tags found, use 1.0.0 without bumping
+          BASE_VERSION="1.0.0"
+          echo "📦 No previous releases found, starting from $BASE_VERSION"
         else
+          # Parse existing version
           CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
           echo "📦 Latest stable version: $CURRENT_VERSION"
+          
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+          
+          echo "📋 Current: $MAJOR.$MINOR.$PATCH"
+          
+          # Determine version bump from PR title
+          # Check for breaking changes (major bump) - must check BEFORE checking for feat!
+          if echo "$PR_TITLE" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
+            BUMP="major"
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+            echo "💥 Breaking change detected (!) → MAJOR bump"
+          # Check for features (minor bump)
+          elif echo "$PR_TITLE" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP="minor"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+            echo "✨ Feature detected → MINOR bump"
+          # Everything else is a patch
+          else
+            BUMP="patch"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$MINOR
+            NEW_PATCH=$((PATCH + 1))
+            echo "🔧 Patch changes → PATCH bump"
+          fi
+          
+          BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+          echo "📦 New base version: $BASE_VERSION"
         fi
-        
-        # Parse current version
-        MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-        MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-        PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-        
-        echo "📋 Current: $MAJOR.$MINOR.$PATCH"
-        
-        # Get PR title to determine version bump
-        PR_TITLE="${{ github.event.pull_request.title }}"
-        echo "📝 PR Title: $PR_TITLE"
-        
-        # Check for breaking changes (major bump)
-        if echo "$PR_TITLE" | grep -qE '^[a-z]+(\([a-z]+\))?!:'; then
-          BUMP="major"
-          NEW_MAJOR=$((MAJOR + 1))
-          NEW_MINOR=0
-          NEW_PATCH=0
-          echo "💥 Breaking change detected → MAJOR bump"
-        # Check for features (minor bump)
-        elif echo "$PR_TITLE" | grep -qE '^feat(\([a-z]+\))?:'; then
-          BUMP="minor"
-          NEW_MAJOR=$MAJOR
-          NEW_MINOR=$((MINOR + 1))
-          NEW_PATCH=0
-          echo "✨ Feature detected → MINOR bump"
-        # Everything else is a patch
-        else
-          BUMP="patch"
-          NEW_MAJOR=$MAJOR
-          NEW_MINOR=$MINOR
-          NEW_PATCH=$((PATCH + 1))
-          echo "🔧 Patch changes → PATCH bump"
-        fi
-        
-        BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
-        echo "📦 New base version: $BASE_VERSION"
         
         # Apply channel suffix
         if [ "$BRANCH" = "main" ]; then
@@ -194,4 +278,6 @@ jobs:
       if: steps.check_changes.outputs.changed != 'true'
       run: |
         echo "ℹ️  CHANGELOG is already up to date"
+        echo "✅ PR title is valid: ${{ github.event.pull_request.title }}"
+        echo "📦 Version: ${{ steps.version.outputs.version }}"
 
