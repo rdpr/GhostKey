@@ -1,4 +1,4 @@
-# 1.0.0-dev.1 (2025-11-15)
+## **[dev]** [1.0.0-dev.1](https://github.com/rdpr/GhostKey/releases/tag/v1.0.0-dev.1) (2025-11-15)
 
 
 ### Bug Fixes
