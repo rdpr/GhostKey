@@ -339,4 +339,3 @@ By contributing to GhostKey, you agree that your contributions will be licensed 
 ---
 
 Thank you for contributing to GhostKey! 🎉
-
