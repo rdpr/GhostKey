@@ -222,8 +222,9 @@ Contributions are welcome! GhostKey follows the [Conventional Commits](https://w
 
 - **PR Title Format**: Must follow `type: description` or `type(scope): description`
 - **Target Branch**: Open PRs to `dev` (not `main`)
-- **Auto-CHANGELOG**: Your PR title will automatically generate CHANGELOG entries
-- **Auto-Release**: Merges to `dev`/`beta`/`main` trigger automatic releases
+- **Auto-Versioning**: Your PR type determines version bump (`feat` = minor, `fix` = patch, `!` = major)
+- **Auto-CHANGELOG**: Your PR title automatically generates CHANGELOG entries
+- **Auto-Release**: Merges to `dev`/`beta`/`main` trigger automatic releases with semantic versioning
 
 For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

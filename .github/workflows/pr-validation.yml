@@ -59,6 +59,7 @@ jobs:
           ### Required Format
           \`\`\`
           <type>(<scope>): <description>
+          <type>(<scope>)!: <breaking change description>
           \`\`\`
 
           ### Valid Types
@@ -80,6 +81,13 @@ jobs:
           - \`docs: update installation guide\`
           - \`feat(ui): implement new welcome screen\`
           - \`fix(auth): correct token validation\`
+          - \`feat!: redesign entire UI (breaking change)\`
+          - \`fix(api)!: change response format (breaking)\`
+
+          ### Breaking Changes
+          - Add \`!\` after the type/scope to indicate a breaking change
+          - Example: \`feat!: breaking change\` or \`feat(scope)!: breaking change\`
+          - The \`!\` is placed before the \`:\`
 
           ### Rules
           - Scope is optional (e.g., \`feat: ...\` or \`feat(scope): ...\`)

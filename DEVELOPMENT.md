@@ -175,14 +175,17 @@ The PR title validation workflow will enforce this format automatically.
 
 ### Versioning and Releases
 
-**Automatic Versioning:**
-- Base version stored in `VERSION` file (e.g., `1.2.0`)
+**Fully Automatic Semantic Versioning:**
+- Version is **automatically calculated** from conventional commit types
+- **No VERSION file to update!** Everything is derived from git tags and commit messages
+- Version bumps:
+  - `fix:` → Patch (1.2.3 → 1.2.4)
+  - `feat:` → Minor (1.2.3 → 1.3.0)
+  - `!` → Major (1.2.3 → 2.0.0)
 - Releases are auto-suffixed based on target branch:
-  - `main`: `1.2.0` (stable)
-  - `beta`: `1.2.0-beta.1`, `1.2.0-beta.2`, etc.
-  - `dev`: `1.2.0-dev.1`, `1.2.0-dev.2`, etc.
-- Counters auto-increment via git tag lookup
-- **Only update `VERSION` when starting a new major/minor cycle**
+  - `main`: `1.3.0` (stable)
+  - `beta`: `1.3.0-beta.1`, `1.3.0-beta.2`, ... (auto-incremented)
+  - `dev`: `1.3.0-dev.1`, `1.3.0-dev.2`, ... (auto-incremented)
 
 **Automatic CHANGELOG Generation:**
 - CHANGELOG is auto-generated from PR titles using `conventional-changelog`
@@ -226,11 +229,14 @@ This allows future implementation of user preferences for subscribing to beta/de
 2. CHANGELOG auto-updates on PR
 3. Merge → auto-releases as `X.Y.Z`
 
-**Starting a New Version:**
-1. Update `VERSION` file (e.g., from `1.2.0` to `1.3.0`)
-2. Commit to `dev`: `chore: bump version to 1.3.0`
-3. Next releases will be `1.3.0-dev.1`, `1.3.0-beta.1`, `1.3.0`
-4. Counters automatically reset for the new version
+**Version Bumping is Automatic:**
+- No need to manually update any VERSION file!
+- The system automatically:
+  - Reads the latest stable version from git tags
+  - Analyzes your commit type (`feat`, `fix`, `!`)
+  - Calculates the next semantic version
+  - Applies channel suffixes for dev/beta
+  - Creates the release with the correct version
 
 ## Release Process
 

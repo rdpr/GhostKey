@@ -29,12 +29,72 @@ jobs:
     - name: Determine version and channel
       id: version
       run: |
-        BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
         BRANCH="${{ github.ref_name }}"
         
-        echo "📋 Base VERSION: $BASE_VERSION"
         echo "🎯 Branch: $BRANCH"
         
+        # Fetch all tags
+        git fetch --tags
+        
+        # Find the latest semantic version tag (stable releases only for base version)
+        LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
+        
+        if [ -z "$LATEST_STABLE_TAG" ]; then
+          # No stable tags found, start from 0.1.0
+          CURRENT_VERSION="0.1.0"
+          echo "📦 No previous stable release found, starting from $CURRENT_VERSION"
+        else
+          CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
+          echo "📦 Latest stable version: $CURRENT_VERSION"
+        fi
+        
+        # Parse current version
+        MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+        MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+        PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+        
+        echo "📋 Current: $MAJOR.$MINOR.$PATCH"
+        
+        # Determine version bump by analyzing commit messages since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$LAST_TAG" ]; then
+          # No tags at all, get all commits
+          COMMITS=$(git log --pretty=format:"%s" | head -50)
+        else
+          # Get commits since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s")
+        fi
+        
+        echo "📝 Analyzing commits for version bump..."
+        
+        # Check for breaking changes (major bump)
+        if echo "$COMMITS" | grep -qE '^[a-z]+(\([a-z]+\))?!:'; then
+          BUMP="major"
+          NEW_MAJOR=$((MAJOR + 1))
+          NEW_MINOR=0
+          NEW_PATCH=0
+          echo "💥 Breaking change detected → MAJOR bump"
+        # Check for features (minor bump)
+        elif echo "$COMMITS" | grep -qE '^feat(\([a-z]+\))?:'; then
+          BUMP="minor"
+          NEW_MAJOR=$MAJOR
+          NEW_MINOR=$((MINOR + 1))
+          NEW_PATCH=0
+          echo "✨ Feature detected → MINOR bump"
+        # Everything else is a patch
+        else
+          BUMP="patch"
+          NEW_MAJOR=$MAJOR
+          NEW_MINOR=$MINOR
+          NEW_PATCH=$((PATCH + 1))
+          echo "🔧 Patch changes → PATCH bump"
+        fi
+        
+        BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+        echo "📦 New base version: $BASE_VERSION"
+        
+        # Apply channel suffix
         if [ "$BRANCH" = "main" ]; then
           FULL_VERSION="$BASE_VERSION"
           CHANNEL="stable"
@@ -42,9 +102,6 @@ jobs:
           echo "✅ Stable release: $FULL_VERSION"
         else
           CHANNEL="$BRANCH"  # "dev" or "beta"
-          
-          # Fetch all tags
-          git fetch --tags
           
           # Find latest tag for this version+channel
           LATEST_TAG=$(git tag -l "v${BASE_VERSION}-${CHANNEL}.*" | sort -V | tail -1)
@@ -66,10 +123,11 @@ jobs:
         fi
         
         echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
         echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
         echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
         
-        echo "📦 Building version $FULL_VERSION (channel: $CHANNEL)"
+        echo "🚀 Building version $FULL_VERSION (base: $BASE_VERSION, channel: $CHANNEL)"
     
     - name: Check if tag exists
       id: check_tag

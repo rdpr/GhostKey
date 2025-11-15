@@ -2,7 +2,7 @@ name: Auto-Generate CHANGELOG
 
 on:
   pull_request:
-    types: [opened, synchronized, reopened]
+    types: [opened, synchronize, reopened]
     branches:
       - main
       - beta
@@ -35,28 +35,76 @@ jobs:
     - name: Determine version and channel
       id: version
       run: |
-        VERSION=$(cat VERSION | tr -d '[:space:]')
         BRANCH="${{ github.base_ref }}"
         
-        echo "📋 Base VERSION: $VERSION"
         echo "🎯 Target branch: $BRANCH"
         
+        # Fetch all tags
+        git fetch --tags
+        
+        # Find the latest semantic version tag (stable releases only for base version)
+        LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
+        
+        if [ -z "$LATEST_STABLE_TAG" ]; then
+          # No stable tags found, start from 1.0.0
+          CURRENT_VERSION="1.0.0"
+          echo "📦 No previous stable release found, starting from $CURRENT_VERSION"
+        else
+          CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
+          echo "📦 Latest stable version: $CURRENT_VERSION"
+        fi
+        
+        # Parse current version
+        MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+        MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+        PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+        
+        echo "📋 Current: $MAJOR.$MINOR.$PATCH"
+        
+        # Get PR title to determine version bump
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        echo "📝 PR Title: $PR_TITLE"
+        
+        # Check for breaking changes (major bump)
+        if echo "$PR_TITLE" | grep -qE '^[a-z]+(\([a-z]+\))?!:'; then
+          BUMP="major"
+          NEW_MAJOR=$((MAJOR + 1))
+          NEW_MINOR=0
+          NEW_PATCH=0
+          echo "💥 Breaking change detected → MAJOR bump"
+        # Check for features (minor bump)
+        elif echo "$PR_TITLE" | grep -qE '^feat(\([a-z]+\))?:'; then
+          BUMP="minor"
+          NEW_MAJOR=$MAJOR
+          NEW_MINOR=$((MINOR + 1))
+          NEW_PATCH=0
+          echo "✨ Feature detected → MINOR bump"
+        # Everything else is a patch
+        else
+          BUMP="patch"
+          NEW_MAJOR=$MAJOR
+          NEW_MINOR=$MINOR
+          NEW_PATCH=$((PATCH + 1))
+          echo "🔧 Patch changes → PATCH bump"
+        fi
+        
+        BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+        echo "📦 New base version: $BASE_VERSION"
+        
+        # Apply channel suffix
         if [ "$BRANCH" = "main" ]; then
-          FULL_VERSION="$VERSION"
+          FULL_VERSION="$BASE_VERSION"
           CHANNEL="stable"
           echo "✅ Stable release: $FULL_VERSION"
         else
           CHANNEL="$BRANCH"  # "dev" or "beta"
           
-          # Fetch all tags
-          git fetch --tags
-          
           # Find latest tag for this version+channel
-          LATEST_TAG=$(git tag -l "v${VERSION}-${CHANNEL}.*" | sort -V | tail -1)
+          LATEST_TAG=$(git tag -l "v${BASE_VERSION}-${CHANNEL}.*" | sort -V | tail -1)
           
           if [ -z "$LATEST_TAG" ]; then
             COUNTER=1
-            echo "📦 First $CHANNEL release for version $VERSION"
+            echo "📦 First $CHANNEL release for version $BASE_VERSION"
           else
             # Extract counter from tag (e.g., v1.1.0-beta.2 -> 2)
             COUNTER=$(echo "$LATEST_TAG" | grep -oE '[0-9]+$')
@@ -65,13 +113,15 @@ jobs:
             echo "⬆️  Incrementing counter to: $COUNTER"
           fi
           
-          FULL_VERSION="${VERSION}-${CHANNEL}.${COUNTER}"
+          FULL_VERSION="${BASE_VERSION}-${CHANNEL}.${COUNTER}"
           echo "✅ $CHANNEL release: $FULL_VERSION"
         fi
         
         echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
         echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
-        echo "base_version=$VERSION" >> $GITHUB_OUTPUT
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+        
+        echo "🚀 Version for CHANGELOG: $FULL_VERSION (base: $BASE_VERSION, channel: $CHANNEL)"
     
     - name: Generate CHANGELOG entry
       run: |

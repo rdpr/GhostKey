@@ -117,10 +117,12 @@ GhostKey follows the [Conventional Commits](https://www.conventionalcommits.org/
 - **feat**: A new feature
   - Example: `feat: add dark mode support`
   - Example: `feat(ui): implement new settings panel`
+  - Example: `feat!: redesign entire UI` (breaking change)
 
 - **fix**: A bug fix
   - Example: `fix: resolve crash on startup`
   - Example: `fix(auth): correct token validation`
+  - Example: `fix(api)!: change response format` (breaking change)
 
 - **docs**: Documentation only changes
   - Example: `docs: update installation guide`
@@ -167,6 +169,21 @@ GhostKey follows the [Conventional Commits](https://www.conventionalcommits.org/
 ❌ `updated docs` (no type)
 ❌ `fix: fixed the thing.` (don't end with period)
 
+### Breaking Changes
+
+To indicate a breaking change, add `!` after the type/scope:
+
+```
+feat!: complete redesign of preferences UI
+fix(api)!: change authentication flow
+refactor(core)!: remove deprecated methods
+```
+
+The `!` tells users and tooling that this change breaks backward compatibility. Use it when:
+- Removing features or APIs
+- Changing existing behavior
+- Requiring manual migration steps
+
 ### Rules
 
 - Use present tense: "add" not "added"
@@ -174,6 +191,7 @@ GhostKey follows the [Conventional Commits](https://www.conventionalcommits.org/
 - Don't end description with a period
 - Be concise but descriptive
 - First line should be ≤ 72 characters
+- Add `!` before `:` for breaking changes
 
 ## Automated Workflows
 
@@ -198,17 +216,70 @@ Releases are fully automated:
    - Updates the appcast feed
    - Publishes to GitHub Releases
 
-**You don't need to manually create releases or update version numbers** (unless starting a new major/minor version).
+**You don't need to manually create releases or update version numbers—everything is automatic!**
 
 ## Version Numbers
 
-- The `VERSION` file contains the base version (e.g., `1.2.0`)
-- Releases are auto-suffixed based on branch:
-  - `main`: `1.2.0` (stable)
-  - `beta`: `1.2.0-beta.1`, `1.2.0-beta.2`, etc. (auto-incremented)
-  - `dev`: `1.2.0-dev.1`, `1.2.0-dev.2`, etc. (auto-incremented)
-- Counter auto-increments based on git tags
-- Only update `VERSION` when starting a new major/minor release cycle
+### How Automatic Semantic Versioning Works
+
+GhostKey uses **fully automatic semantic versioning** based on conventional commits:
+
+#### Version Calculation
+
+The version is **automatically calculated** from your PR title:
+
+- **`fix:`** → Patch bump (1.2.3 → 1.2.4)
+  - Bug fixes, documentation, style changes, refactors
+  
+- **`feat:`** → Minor bump (1.2.3 → 1.3.0)
+  - New features, enhancements
+  
+- **`!` (breaking)** → Major bump (1.2.3 → 2.0.0)
+  - Any type with `!` (e.g., `feat!:`, `fix!:`)
+  - Breaking changes, API changes
+
+#### Channel Suffixes
+
+After calculating the semantic version, the workflow adds channel suffixes:
+
+- **`main`**: `1.3.0` (stable, no suffix)
+- **`beta`**: `1.3.0-beta.1`, `1.3.0-beta.2`, ... (auto-incremented)
+- **`dev`**: `1.3.0-dev.1`, `1.3.0-dev.2`, ... (auto-incremented)
+
+#### Examples
+
+**Starting from version 1.2.3:**
+
+1. Merge `fix: resolve crash` to `dev`
+   → Creates `1.2.4-dev.1`
+
+2. Merge `feat: add dark mode` to `dev`
+   → Creates `1.3.0-dev.1` (minor bump resets patch)
+
+3. Merge `feat!: redesign UI` to `beta`
+   → Creates `2.0.0-beta.1` (major bump resets minor and patch)
+
+#### How It Works
+
+1. **Finds latest stable version** from git tags (e.g., `v1.2.3`)
+2. **Analyzes commits** since last release OR **PR title** (for CHANGELOG workflow)
+3. **Determines bump level**:
+   - Scans for `!` → Major
+   - Scans for `feat` → Minor
+   - Everything else → Patch
+4. **Calculates new version** (e.g., `1.3.0`)
+5. **Adds channel suffix** if not main (e.g., `1.3.0-dev.1`)
+6. **Auto-increments counter** for dev/beta releases
+
+### No Manual Versioning Needed!
+
+You don't need to update any VERSION file or manage version numbers manually. The system:
+- ✅ Automatically determines version bumps from commit types
+- ✅ Automatically increments prerelease counters
+- ✅ Automatically tags and releases
+- ✅ Automatically updates CHANGELOG
+
+Just use the correct commit type in your PR title and the rest is handled automatically!
 
 ## Testing
 

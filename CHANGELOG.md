@@ -1,3 +1,30 @@
+# Changelog
+
+All notable changes to GhostKey will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Conventional Commits](https://www.conventionalcommits.org/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+> **Automated Generation**: This CHANGELOG is automatically generated using [conventional-changelog](https://github.com/conventional-changelog/conventional-changelog) based on PR titles.
+
+> **Automatic Semantic Versioning**: Versions are automatically calculated from commit types:
+> - `fix:` → Patch bump (1.2.3 → 1.2.4)
+> - `feat:` → Minor bump (1.2.3 → 1.3.0)
+> - `!` (breaking) → Major bump (1.2.3 → 2.0.0)
+
+## Versioning Strategy
+
+- **Stable releases** (`main` branch): `1.2.0`, `1.3.0`, etc.
+- **Beta releases** (`beta` branch): `1.2.0-beta.1`, `1.2.0-beta.2`, etc.
+- **Development releases** (`dev` branch): `1.2.0-dev.1`, `1.2.0-dev.2`, etc.
+
+Versions are automatically calculated from conventional commit types. Beta and dev counters auto-increment based on git tags.
+
+## [Unreleased]
+
+<!-- Add unreleased changes here -->
+
 # [](https://github.com/rdpr/GhostKey/compare/v1.0.0-beta.1...v) (2025-11-15)
 
 
