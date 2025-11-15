@@ -7,10 +7,7 @@ on:
       - beta
       - dev
     paths-ignore:
-      - '**.md'
       - '.gitignore'
-      - 'LICENSE'
-      - 'CHANGELOG.md'
 
 permissions:
   contents: write
