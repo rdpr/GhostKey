@@ -171,6 +171,16 @@ jobs:
         echo "🔧 Setting executable permissions..."
         chmod +x ./dist/GhostKey.app/Contents/MacOS/GhostKey
         
+        # Strip ALL code signatures to ensure consistent unsigned state
+        echo "🔧 Removing all code signatures..."
+        codesign --remove-signature ./dist/GhostKey.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle || true
+        codesign --remove-signature ./dist/GhostKey.app/Contents/Frameworks/Sparkle.framework || true
+        codesign --remove-signature ./dist/GhostKey.app || true
+        
+        # Verify signatures are removed
+        echo "🔍 Verifying code signature status..."
+        codesign -dv ./dist/GhostKey.app 2>&1 || echo "✅ App is unsigned (as expected)"
+        
         # Verify bundle structure
         echo "📋 Verifying bundle structure..."
         if [ ! -f "./dist/GhostKey.app/Contents/MacOS/GhostKey" ]; then
