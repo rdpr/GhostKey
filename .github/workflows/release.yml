@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
+      - beta
+      - dev
     paths-ignore:
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
+      - 'CHANGELOG.md'
 
 permissions:
   contents: write
@@ -23,12 +26,50 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Read version
+    - name: Determine version and channel
       id: version
       run: |
-        VERSION=$(cat VERSION | tr -d '[:space:]')
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "📦 Building version $VERSION"
+        BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
+        BRANCH="${{ github.ref_name }}"
+        
+        echo "📋 Base VERSION: $BASE_VERSION"
+        echo "🎯 Branch: $BRANCH"
+        
+        if [ "$BRANCH" = "main" ]; then
+          FULL_VERSION="$BASE_VERSION"
+          CHANNEL="stable"
+          IS_PRERELEASE=false
+          echo "✅ Stable release: $FULL_VERSION"
+        else
+          CHANNEL="$BRANCH"  # "dev" or "beta"
+          
+          # Fetch all tags
+          git fetch --tags
+          
+          # Find latest tag for this version+channel
+          LATEST_TAG=$(git tag -l "v${BASE_VERSION}-${CHANNEL}.*" | sort -V | tail -1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            COUNTER=1
+            echo "📦 First $CHANNEL release for version $BASE_VERSION"
+          else
+            # Extract counter from tag (e.g., v1.1.0-beta.2 -> 2)
+            COUNTER=$(echo "$LATEST_TAG" | grep -oE '[0-9]+$')
+            COUNTER=$((COUNTER + 1))
+            echo "📦 Found latest tag: $LATEST_TAG"
+            echo "⬆️  Incrementing counter to: $COUNTER"
+          fi
+          
+          FULL_VERSION="${BASE_VERSION}-${CHANNEL}.${COUNTER}"
+          IS_PRERELEASE=true
+          echo "✅ $CHANNEL release: $FULL_VERSION"
+        fi
+        
+        echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+        echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+        
+        echo "📦 Building version $FULL_VERSION (channel: $CHANNEL)"
     
     - name: Check if tag exists
       id: check_tag
@@ -375,6 +416,7 @@ jobs:
         echo "📝 Generating appcast with Sparkle..."
         
         VERSION="${{ steps.version.outputs.version }}"
+        CHANNEL="${{ steps.version.outputs.channel }}"
         ZIP_FILE="GhostKey-${VERSION}.zip"
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
         KEY_FILE="/tmp/sparkle_private_key.pem"
@@ -395,6 +437,14 @@ jobs:
           --link "https://github.com/rdpr/GhostKey" \
           --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
           archives
+        
+        # Add channel tag if not stable
+        if [ "$CHANNEL" != "stable" ]; then
+          echo "📋 Adding channel tag for $CHANNEL..."
+          # Insert channel tag after sparkle:version in the generated appcast
+          sed -i '' "/<sparkle:version>/a\\
+        <sparkle:channel>${CHANNEL}</sparkle:channel>" archives/appcast.xml
+        fi
         
         # Move generated appcast and merge with existing
         if [ -f "appcast.xml" ] && [ -f "archives/appcast.xml" ]; then
@@ -418,9 +468,9 @@ jobs:
         # Clean up
         rm -rf archives "$KEY_FILE"
         
-        echo "✅ Appcast updated"
+        echo "✅ Appcast updated (channel: $CHANNEL)"
         echo "📋 Latest entry:"
-        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -20
+        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -25
     
     - name: Commit appcast changes
       if: steps.check_tag.outputs.exists == 'false'
@@ -458,15 +508,32 @@ jobs:
       run: |
         echo "📝 Generating release notes..."
         
-        cat > release_notes.md << 'EOF'
-        ## GhostKey v${{ steps.version.outputs.version }}
+        CHANNEL="${{ steps.version.outputs.channel }}"
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Add channel-specific header
+        if [ "$CHANNEL" = "dev" ]; then
+          HEADER="## 🚧 GhostKey v${VERSION} (Development Release)"
+          WARNING="⚠️ **Development Release**: This is an early development build. It may contain bugs and incomplete features. Use at your own risk!"
+        elif [ "$CHANNEL" = "beta" ]; then
+          HEADER="## ⚠️ GhostKey v${VERSION} (Beta Release)"
+          WARNING="⚠️ **Beta Release**: This is a pre-release version for testing. Please report any issues you encounter."
+        else
+          HEADER="## GhostKey v${VERSION}"
+          WARNING=""
+        fi
+        
+        cat > release_notes.md << EOF
+        ${HEADER}
+        
+        ${WARNING}
         
         ### 📦 Installation
         
         Choose one of the following:
         
-        1. **DMG (Recommended)**: Download `GhostKey-${{ steps.version.outputs.version }}.dmg`, open it, and drag GhostKey to your Applications folder
-        2. **ZIP**: Download `GhostKey-${{ steps.version.outputs.version }}.zip`, extract it, and move GhostKey.app to your Applications folder
+        1. **DMG (Recommended)**: Download \`GhostKey-${VERSION}.dmg\`, open it, and drag GhostKey to your Applications folder
+        2. **ZIP**: Download \`GhostKey-${VERSION}.zip\`, extract it, and move GhostKey.app to your Applications folder
         
         **This app is code-signed and notarized by Apple.** You can open it directly—no Terminal commands needed!
         
@@ -474,10 +541,10 @@ jobs:
         
         Verify your download:
         
-        ```
-        $(cat GhostKey-${{ steps.version.outputs.version }}.zip.sha256)
-        $(cat GhostKey-${{ steps.version.outputs.version }}.dmg.sha256)
-        ```
+        \`\`\`
+        $(cat GhostKey-${VERSION}.zip.sha256)
+        $(cat GhostKey-${VERSION}.dmg.sha256)
+        \`\`\`
         
         ### 📋 What's New
         
@@ -513,7 +580,7 @@ jobs:
         name: v${{ steps.version.outputs.version }}
         body_path: release_notes.md
         draft: false
-        prerelease: false
+        prerelease: ${{ steps.version.outputs.is_prerelease }}
         files: |
           GhostKey-${{ steps.version.outputs.version }}.zip
           GhostKey-${{ steps.version.outputs.version }}.zip.sha256

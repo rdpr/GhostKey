@@ -4,6 +4,12 @@
   <img src="Media.xcassets/AppIcon.appiconset/GhostKey-256.png" alt="GhostKey Logo" width="192" height="192">
 </p>
 
+<p align="center">
+  <a href="https://www.conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg" alt="Conventional Commits"></a>
+  <a href="https://github.com/rdpr/GhostKey/releases"><img src="https://img.shields.io/github/v/release/rdpr/GhostKey" alt="Latest Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/rdpr/GhostKey" alt="License"></a>
+</p>
+
 A lightweight macOS menu bar app for quickly pasting authentication codes with a global hotkey. Perfect for managing 2FA codes, one-time passwords, or any sequential codes you need to paste frequently.
 
 ## Features
@@ -200,13 +206,26 @@ GhostKey/
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! GhostKey follows the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Quick Start
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create your feature branch from `dev`: `git checkout -b feature/my-feature`
+3. Make your changes
+4. Open a Pull Request to `dev` with a conventional commit title:
+   - `feat: add new feature`
+   - `fix: resolve bug`
+   - `docs: update documentation`
+
+### Important Notes
+
+- **PR Title Format**: Must follow `type: description` or `type(scope): description`
+- **Target Branch**: Open PRs to `dev` (not `main`)
+- **Auto-CHANGELOG**: Your PR title will automatically generate CHANGELOG entries
+- **Auto-Release**: Merges to `dev`/`beta`/`main` trigger automatic releases
+
+For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

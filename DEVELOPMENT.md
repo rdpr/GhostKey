@@ -141,15 +141,106 @@ GhostKey uses the Sparkle framework for automatic updates:
 - Clear both using the reset script above
 - Verify they show different names in menu bar
 
+## Conventional Commits Workflow
+
+### Branch Strategy
+
+GhostKey uses a three-branch release workflow:
+
+```
+dev (development) → beta (release candidates) → main (stable)
+```
+
+- **`dev` branch**: Active development, creates `X.Y.Z-dev.N` releases
+- **`beta` branch**: Release candidates for testing, creates `X.Y.Z-beta.N` releases
+- **`main` branch**: Stable releases only, creates `X.Y.Z` releases
+
+### PR Title Format
+
+**All PR titles MUST follow Conventional Commits format:**
+
+```
+<type>(<scope>): <description>
+```
+
+**Examples:**
+- `feat: add dark mode support`
+- `fix: resolve crash on startup`
+- `docs: update installation guide`
+- `feat(ui): implement new settings panel`
+
+**Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`
+
+The PR title validation workflow will enforce this format automatically.
+
+### Versioning and Releases
+
+**Automatic Versioning:**
+- Base version stored in `VERSION` file (e.g., `1.2.0`)
+- Releases are auto-suffixed based on target branch:
+  - `main`: `1.2.0` (stable)
+  - `beta`: `1.2.0-beta.1`, `1.2.0-beta.2`, etc.
+  - `dev`: `1.2.0-dev.1`, `1.2.0-dev.2`, etc.
+- Counters auto-increment via git tag lookup
+- **Only update `VERSION` when starting a new major/minor cycle**
+
+**Automatic CHANGELOG Generation:**
+- CHANGELOG is auto-generated from PR titles using `conventional-changelog`
+- When you open a PR, a bot commits the CHANGELOG update to your branch
+- For major releases, manually enhance with breaking changes/migration notes
+
+**Automatic Releases:**
+1. Merge PR to `dev`, `beta`, or `main`
+2. GitHub Actions automatically:
+   - Detects version and channel
+   - Builds and signs the app
+   - Creates release with appropriate suffix
+   - Updates appcast with channel tags
+   - Publishes to GitHub Releases
+
+### Release Channels (Sparkle)
+
+The appcast includes channel tags for different release types:
+- **Dev releases**: `<sparkle:channel>dev</sparkle:channel>`
+- **Beta releases**: `<sparkle:channel>beta</sparkle:channel>`
+- **Stable releases**: No channel tag (default)
+
+This allows future implementation of user preferences for subscribing to beta/dev releases.
+
+### How to Create Releases
+
+**Dev Release:**
+1. Create feature branch from `dev`
+2. Make changes and commit
+3. Open PR to `dev` with conventional commit title
+4. CHANGELOG auto-updates on PR
+5. Merge → auto-releases as `X.Y.Z-dev.N`
+
+**Beta Release:**
+1. Create PR from `dev` to `beta` with conventional title
+2. CHANGELOG auto-updates on PR
+3. Merge → auto-releases as `X.Y.Z-beta.N`
+
+**Stable Release:**
+1. Create PR from `beta` to `main` with conventional title
+2. CHANGELOG auto-updates on PR
+3. Merge → auto-releases as `X.Y.Z`
+
+**Starting a New Version:**
+1. Update `VERSION` file (e.g., from `1.2.0` to `1.3.0`)
+2. Commit to `dev`: `chore: bump version to 1.3.0`
+3. Next releases will be `1.3.0-dev.1`, `1.3.0-beta.1`, `1.3.0`
+4. Counters automatically reset for the new version
+
 ## Release Process
 
-See [RELEASE.md](.github/RELEASE.md) for the automated release workflow.
+See [RELEASE.md](.github/RELEASE.md) for detailed information about the automated release workflow.
 
-Quick version:
-1. Update `VERSION` file
-2. Update `CHANGELOG.md`
-3. Commit and push to `main`
-4. GitHub Actions handles the rest
+**Quick version:**
+- Releases are fully automated via GitHub Actions
+- No manual intervention needed
+- Just merge PRs with conventional commit titles
+- Version numbers and CHANGELOG update automatically
 
 ## Architecture Overview
 

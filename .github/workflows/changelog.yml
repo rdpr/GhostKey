@@ -1,0 +1,147 @@
+name: Auto-Generate CHANGELOG
+
+on:
+  pull_request:
+    types: [opened, synchronized, reopened]
+    branches:
+      - main
+      - beta
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout PR branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install conventional-changelog
+      run: npm install -g conventional-changelog-cli
+    
+    - name: Determine version and channel
+      id: version
+      run: |
+        VERSION=$(cat VERSION | tr -d '[:space:]')
+        BRANCH="${{ github.base_ref }}"
+        
+        echo "📋 Base VERSION: $VERSION"
+        echo "🎯 Target branch: $BRANCH"
+        
+        if [ "$BRANCH" = "main" ]; then
+          FULL_VERSION="$VERSION"
+          CHANNEL="stable"
+          echo "✅ Stable release: $FULL_VERSION"
+        else
+          CHANNEL="$BRANCH"  # "dev" or "beta"
+          
+          # Fetch all tags
+          git fetch --tags
+          
+          # Find latest tag for this version+channel
+          LATEST_TAG=$(git tag -l "v${VERSION}-${CHANNEL}.*" | sort -V | tail -1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            COUNTER=1
+            echo "📦 First $CHANNEL release for version $VERSION"
+          else
+            # Extract counter from tag (e.g., v1.1.0-beta.2 -> 2)
+            COUNTER=$(echo "$LATEST_TAG" | grep -oE '[0-9]+$')
+            COUNTER=$((COUNTER + 1))
+            echo "📦 Found latest tag: $LATEST_TAG"
+            echo "⬆️  Incrementing counter to: $COUNTER"
+          fi
+          
+          FULL_VERSION="${VERSION}-${CHANNEL}.${COUNTER}"
+          echo "✅ $CHANNEL release: $FULL_VERSION"
+        fi
+        
+        echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+        echo "base_version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Generate CHANGELOG entry
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        CHANNEL="${{ steps.version.outputs.channel }}"
+        
+        echo "📝 Generating CHANGELOG for $VERSION ($CHANNEL)..."
+        
+        # Generate changelog for current version
+        conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+        
+        # Add channel badge if not stable
+        if [ "$CHANNEL" != "stable" ]; then
+          # Add a channel indicator at the top of the new entry
+          BADGE="**[$CHANNEL release]**"
+          sed -i "0,/## \[/s//## \[$BADGE\] [/" CHANGELOG.md
+        fi
+        
+        echo "✅ CHANGELOG generated"
+    
+    - name: Check for changes
+      id: check_changes
+      run: |
+        git diff --quiet CHANGELOG.md || echo "changed=true" >> $GITHUB_OUTPUT
+    
+    - name: Commit CHANGELOG changes
+      if: steps.check_changes.outputs.changed == 'true'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        git add CHANGELOG.md
+        git commit -m "chore: update CHANGELOG for ${{ steps.version.outputs.version }} [skip ci]"
+        git push
+        
+        echo "✅ CHANGELOG committed to PR branch"
+    
+    - name: Comment on PR
+      if: steps.check_changes.outputs.changed == 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const version = '${{ steps.version.outputs.version }}';
+          const channel = '${{ steps.version.outputs.channel }}';
+          
+          let channelEmoji = '🚀';
+          if (channel === 'beta') channelEmoji = '⚠️';
+          if (channel === 'dev') channelEmoji = '🚧';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ${channelEmoji} CHANGELOG Updated
+
+          The CHANGELOG has been automatically generated for version **\`${version}\`** (\`${channel}\` channel).
+
+          This entry was created from the conventional commit format of your PR title.
+
+          If this is a major release, you may want to manually enhance the CHANGELOG with:
+          - Breaking changes section
+          - Migration guide
+          - Detailed feature descriptions
+
+          The CHANGELOG will be included in the release notes when this PR is merged.`
+          })
+    
+    - name: No changes needed
+      if: steps.check_changes.outputs.changed != 'true'
+      run: |
+        echo "ℹ️  CHANGELOG is already up to date"
+

@@ -3,9 +3,20 @@
 All notable changes to GhostKey will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Conventional Commits](https://www.conventionalcommits.org/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Note**: Version numbers are stored in the `VERSION` file. Update that file to trigger a new release.
+> **Note**: Version numbers are stored in the `VERSION` file. Update that file to create a new major/minor release.
+
+> **Automated Generation**: From version 1.2.0 onwards, this CHANGELOG is automatically generated using [conventional-changelog](https://github.com/conventional-changelog/conventional-changelog) based on PR titles. Each release entry is derived from the conventional commit format when PRs are merged to `dev`, `beta`, or `main` branches.
+
+## Versioning Strategy
+
+- **Stable releases** (`main` branch): `1.2.0`, `1.3.0`, etc.
+- **Beta releases** (`beta` branch): `1.2.0-beta.1`, `1.2.0-beta.2`, etc.
+- **Development releases** (`dev` branch): `1.2.0-dev.1`, `1.2.0-dev.2`, etc.
+
+Beta and dev counters auto-increment based on git tags. Update the `VERSION` file to start a new release cycle.
 
 ## [Unreleased]
 
