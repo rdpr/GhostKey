@@ -234,9 +234,6 @@ jobs:
           --context .changelog-context.json \
           --release-count 0
         
-        echo "📋 Generated CHANGELOG (first 20 lines):"
-        head -20 CHANGELOG.md
-        
         # Add release link and channel badge to the version header
         if [ "$CHANNEL" != "stable" ]; then
           CHANNEL_BADGE="**[$CHANNEL]** "
@@ -247,27 +244,28 @@ jobs:
         # Escape special characters in version for regex (dots and dashes)
         VERSION_ESCAPED=$(echo "$VERSION" | sed 's/\./\\./g; s/-/\\-/g')
         
-        echo "🔍 Looking for pattern: ^## \[${VERSION_ESCAPED}\]"
+        echo "🔍 Looking for version header: # ${VERSION}"
         
-        # Find the first version header and enhance it with release link
-        # conventional-changelog generates: ## [version](compare-link) (date)
+        # conventional-changelog generates: # version (date)
         # We want to change it to: ## [channel badge] [version](release-link) (date)
         
-        # First try to match the pattern with compare link and date
-        if grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
-          echo "✅ Found version header with brackets"
-          # Replace the version with version + release link, preserving any date/compare links
-          sed -i.bak "0,/^## \[${VERSION_ESCAPED}\]/s|^## \[${VERSION_ESCAPED}\]|## ${CHANNEL_BADGE}[${VERSION}](${REPO_URL}/releases/tag/v${VERSION})|" CHANGELOG.md
+        # Match "# version (date)" and replace with "## [channel] [version](link) (date)"
+        if grep -q "^# ${VERSION} " CHANGELOG.md; then
+          echo "✅ Found version header: # ${VERSION}"
+          # Replace # version (date) with ## [badge] [version](link) (date)
+          # Capture the date part with \(.*\) and preserve it with \1
+          sed -i.bak "0,/^# ${VERSION_ESCAPED} /s|^# ${VERSION_ESCAPED} \(.*\)|## ${CHANNEL_BADGE}[${VERSION}](${REPO_URL}/releases/tag/v${VERSION}) \1|" CHANGELOG.md
+          echo "✅ Modified to: ## ${CHANNEL_BADGE}[${VERSION}](${REPO_URL}/releases/tag/v${VERSION}) (date)"
         else
-          echo "⚠️  Version header not found in expected format"
-          echo "📋 Searching for alternative patterns..."
-          grep "^##" CHANGELOG.md | head -5
+          echo "⚠️  Version header not found"
+          echo "📋 First 5 lines of CHANGELOG:"
+          head -5 CHANGELOG.md
         fi
         
         rm -f CHANGELOG.md.bak
         
-        echo "📋 Modified CHANGELOG (first 20 lines):"
-        head -20 CHANGELOG.md
+        echo "📋 Modified CHANGELOG (first 5 lines):"
+        head -5 CHANGELOG.md
         
         # Clean up
         rm -f .changelog-context.json
