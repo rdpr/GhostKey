@@ -670,4 +670,3 @@ jobs:
         echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
         echo "- [Release Page](https://github.com/rdpr/ghostkey/releases/tag/v${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
         echo "- [All Releases](https://github.com/rdpr/ghostkey/releases)" >> $GITHUB_STEP_SUMMARY
-
