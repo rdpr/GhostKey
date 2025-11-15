@@ -243,74 +243,92 @@ jobs:
         
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
     
-    - name: Generate appcast with Sparkle
+    - name: Sign ZIP and create appcast entry
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        echo "📝 Generating appcast with Sparkle..."
+        echo "🔐 Signing ZIP and creating appcast..."
         
         PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
+        ZIP_FILE="GhostKey-${{ steps.version.outputs.version }}.zip"
         KEY_FILE="/tmp/sparkle_private_key.pem"
+        VERSION="${{ steps.version.outputs.version }}"
         
         # Write private key to temporary file
         echo -n "$PRIVATE_KEY" > "$KEY_FILE"
         chmod 600 "$KEY_FILE"
         
-        # Debug: Check key file
-        echo "🔍 Key file created: $(ls -la $KEY_FILE)"
-        echo "🔍 Key file size: $(wc -c < $KEY_FILE) bytes"
-        echo "🔍 Key file content preview: $(head -c 20 $KEY_FILE)..."
+        # Sign the ZIP
+        echo "🔐 Signing $ZIP_FILE..."
+        sign_update "$ZIP_FILE" --ed-key-file "$KEY_FILE" > /tmp/signature_output.txt
         
-        # Create archives directory for generate_appcast
-        mkdir -p archives
-        cp "GhostKey-${{ steps.version.outputs.version }}.zip" archives/
+        # Extract signature (format: sparkle:edSignature="..." length="...")
+        SIGNATURE=$(grep -o 'sparkle:edSignature="[^"]*"' /tmp/signature_output.txt | sed 's/sparkle:edSignature="//;s/"//')
+        ZIP_SIZE=$(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE")
         
-        # Generate appcast using Sparkle's official tool
-        echo "🔐 Running generate_appcast..."
-        generate_appcast \
-          --ed-key-file "$KEY_FILE" \
-          --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${{ steps.version.outputs.version }}/" \
-          --link "https://github.com/rdpr/GhostKey" \
-          --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
-          archives 2>&1 || {
-            echo "❌ generate_appcast failed"
-            echo "Trying without key file flag..."
-            # Maybe the tool expects the key in a different format
-            generate_appcast \
-              --account ed25519 \
-              --private-key-file "$KEY_FILE" \
-              --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${{ steps.version.outputs.version }}/" \
-              --link "https://github.com/rdpr/GhostKey" \
-              --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
-              archives
-          }
+        echo "✅ Signature: ${SIGNATURE:0:50}..."
+        echo "✅ Size: $ZIP_SIZE bytes"
         
-        # Move generated appcast to root
-        if [ -f "archives/appcast.xml" ]; then
-          # If we have an existing appcast, merge the new entry
-          if [ -f "appcast.xml" ]; then
-            echo "📝 Merging with existing appcast..."
-            # Extract the new item from generated appcast
-            NEW_ITEM=$(sed -n '/<item>/,/<\/item>/p' archives/appcast.xml)
-            # Insert at the beginning of our existing appcast
-            awk -v item="$NEW_ITEM" '/<channel>/ {print; print item; next} 1' appcast.xml > appcast_new.xml
-            mv appcast_new.xml appcast.xml
-          else
-            # No existing appcast, use the generated one
-            cp archives/appcast.xml appcast.xml
-          fi
-          echo "✅ Appcast generated successfully"
+        # Get app version from Info.plist in the ZIP
+        unzip -q "$ZIP_FILE" "GhostKey.app/Contents/Info.plist" -d /tmp/extract
+        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /tmp/extract/GhostKey.app/Contents/Info.plist)
+        MIN_OS=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" /tmp/extract/GhostKey.app/Contents/Info.plist 2>/dev/null || echo "14.0")
+        rm -rf /tmp/extract
+        
+        echo "✅ App version: $APP_VERSION"
+        echo "✅ Min OS: $MIN_OS"
+        
+        # Create appcast entry
+        PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+        DOWNLOAD_URL="https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/GhostKey-${VERSION}.zip"
+        
+        cat > new_item.xml << EOF
+            <item>
+                <title>Version ${APP_VERSION}</title>
+                <link>https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}</link>
+                <sparkle:version>${APP_VERSION}</sparkle:version>
+                <sparkle:shortVersionString>${APP_VERSION}</sparkle:shortVersionString>
+                <description><![CDATA[
+                    <h2>GhostKey ${APP_VERSION}</h2>
+                    <p>See <a href="https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}">release notes</a> for details.</p>
+                ]]></description>
+                <pubDate>${PUBDATE}</pubDate>
+                <enclosure url="${DOWNLOAD_URL}"
+                           sparkle:version="${APP_VERSION}"
+                           sparkle:shortVersionString="${APP_VERSION}"
+                           sparkle:edSignature="${SIGNATURE}"
+                           length="${ZIP_SIZE}"
+                           type="application/octet-stream"
+                           sparkle:os="macos" />
+                <sparkle:minimumSystemVersion>${MIN_OS}</sparkle:minimumSystemVersion>
+            </item>
+EOF
+        
+        # Merge with existing appcast
+        if [ -f "appcast.xml" ]; then
+          awk '/<channel>/{print; print "        <!-- Auto-generated by GitHub Actions -->"; while(getline < "new_item.xml") print; next}1' appcast.xml > appcast_new.xml
+          mv appcast_new.xml appcast.xml
         else
-          echo "❌ generate_appcast failed"
-          exit 1
+          # Create new appcast
+          cat > appcast.xml << 'XMLEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>GhostKey Updates</title>
+        <link>https://github.com/rdpr/GhostKey</link>
+        <description>Most recent updates to GhostKey</description>
+        <language>en</language>
+        <!-- Auto-generated by GitHub Actions -->
+XMLEOF
+          cat new_item.xml >> appcast.xml
+          echo '    </channel>' >> appcast.xml
+          echo '</rss>' >> appcast.xml
         fi
         
-        # Clean up
-        rm -f "$KEY_FILE"
-        rm -rf archives
+        rm -f new_item.xml "$KEY_FILE" /tmp/signature_output.txt
         
-        # Show generated appcast entry for debugging
-        echo "📋 Generated appcast entry:"
-        grep -A 20 "<item>" appcast.xml | head -25
+        echo "✅ Appcast updated"
+        echo "📋 New entry:"
+        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -15
     
     - name: Commit appcast changes
       if: steps.check_tag.outputs.exists == 'false'
