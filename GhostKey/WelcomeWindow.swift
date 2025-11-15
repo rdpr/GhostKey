@@ -24,7 +24,7 @@ struct WelcomeView: View {
             details: [
                 "Grant Accessibility permission (required)",
                 "Add codes via menu → 'Manage codes…'",
-                "Press ⌃⌥⌘Y to paste your first code - test diff again"
+                "Press ⌃⌥⌘Y to paste your first code - test diff again, and again"
             ]
         ),
         WelcomeStep(
