@@ -252,8 +252,13 @@ jobs:
         KEY_FILE="/tmp/sparkle_private_key.pem"
         
         # Write private key to temporary file
-        echo "$PRIVATE_KEY" > "$KEY_FILE"
+        echo -n "$PRIVATE_KEY" > "$KEY_FILE"
         chmod 600 "$KEY_FILE"
+        
+        # Debug: Check key file
+        echo "🔍 Key file created: $(ls -la $KEY_FILE)"
+        echo "🔍 Key file size: $(wc -c < $KEY_FILE) bytes"
+        echo "🔍 Key file content preview: $(head -c 20 $KEY_FILE)..."
         
         # Create archives directory for generate_appcast
         mkdir -p archives
@@ -266,7 +271,18 @@ jobs:
           --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${{ steps.version.outputs.version }}/" \
           --link "https://github.com/rdpr/GhostKey" \
           --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
-          archives
+          archives 2>&1 || {
+            echo "❌ generate_appcast failed"
+            echo "Trying without key file flag..."
+            # Maybe the tool expects the key in a different format
+            generate_appcast \
+              --account ed25519 \
+              --private-key-file "$KEY_FILE" \
+              --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${{ steps.version.outputs.version }}/" \
+              --link "https://github.com/rdpr/GhostKey" \
+              --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
+              archives
+          }
         
         # Move generated appcast to root
         if [ -f "archives/appcast.xml" ]; then
