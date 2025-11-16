@@ -1,21 +1,47 @@
-## **[dev]** [1.0.0-dev.1](https://github.com/rdpr/GhostKey/releases/tag/v1.0.0-dev.1) (2025-11-15)
+# [1.0.0-beta.2](https://github.com/rdpr/GhostKey/compare/v1.0.0-dev.3...v1.0.0-beta.2) (2025-11-16)
 
-### ✨ Features
 
-- **Smart Code Management**: Add codes via "Manage codes" hub with live counter and automatic cleanup
-- **Global Hotkey**: Customizable keyboard shortcut (default: ⌃⌥⌘Y) for instant code pasting
-- **Visual Indicators**: Color-coded ghost icons showing code availability status
-- **Welcome Guide**: Interactive multi-step tutorial for first-time users
-- **Customizable Thresholds**: Set your own warning levels for remaining codes
-- **Launch at Login**: Automatically starts with macOS
-- **Menu Bar Integration**: Unobtrusive status bar presence with real-time counter
-- **Automatic Updates**: Built-in Sparkle framework for seamless updates
-- **Fully Signed & Notarized**: Code-signed with Apple Developer ID for security
 
-### 🏗️ Technical
+# [1.0.0-beta.1](https://github.com/rdpr/GhostKey/compare/v1.0.0-dev.2...v1.0.0-beta.1) (2025-11-16)
 
-- **Conventional Commits Workflow**: Fully automated versioning, CHANGELOG generation, and releases
-- **Multi-Channel Releases**: Separate dev/beta/stable release channels
-- **GitHub Actions CI/CD**: Automated building, signing, notarization, and distribution
-- **Sparkle Integration**: EdDSA-signed update feed with channel support
+
+
+# [1.0.0-dev.3](https://github.com/rdpr/GhostKey/compare/v1.0.0-beta.1...v1.0.0-dev.3) (2025-11-16)
+
+
+### Features
+
+* v1.0.0-dev.3 ([#15](https://github.com/rdpr/GhostKey/issues/15)) ([2ef1a76](https://github.com/rdpr/GhostKey/commit/2ef1a76d2566f4c3a86c979a87e92e52bcb01bf0)), closes [#2](https://github.com/rdpr/GhostKey/issues/2) [#3](https://github.com/rdpr/GhostKey/issues/3)
+
+
+
+# [1.0.0-dev.2](https://github.com/rdpr/GhostKey/compare/v1.0.0-dev.1...v1.0.0-dev.2) (2025-11-16)
+
+
+### Features
+
+* v1.0.0-dev.2 ([#13](https://github.com/rdpr/GhostKey/issues/13)) ([5002a88](https://github.com/rdpr/GhostKey/commit/5002a880151e2e5e59e779d7e349078a75662524)), closes [#2](https://github.com/rdpr/GhostKey/issues/2) [#3](https://github.com/rdpr/GhostKey/issues/3)
+
+
+
+# 1.0.0-dev.1 (2025-11-16)
+
+
+
+# [1.0.0-beta.1](https://github.com/rdpr/GhostKey/compare/v1.0.0-dev.2...v1.0.0-beta.1) (2025-11-16)
+
+
+
+# [1.0.0-dev.2](https://github.com/rdpr/GhostKey/compare/v1.0.0-dev.1...v1.0.0-dev.2) (2025-11-16)
+
+
+### Features
+
+* v1.0.0-dev.2 ([#13](https://github.com/rdpr/GhostKey/issues/13)) ([5002a88](https://github.com/rdpr/GhostKey/commit/5002a880151e2e5e59e779d7e349078a75662524)), closes [#2](https://github.com/rdpr/GhostKey/issues/2) [#3](https://github.com/rdpr/GhostKey/issues/3)
+
+
+
+# 1.0.0-dev.1 (2025-11-16)
+
+
 
