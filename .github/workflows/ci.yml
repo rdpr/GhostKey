@@ -397,46 +397,8 @@ jobs:
 
         echo "✅ ZIP created: GhostKey-${{ steps.version.outputs.version }}.zip"
 
-    - name: Verify appcast signature (push only)
+    - name: Generate appcast (push only)
       if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
-      run: |
-        echo "🔍 Verifying appcast signature matches built app..."
-
-        VERSION="${{ steps.version.outputs.version }}"
-        ZIP_FILE="GhostKey-${VERSION}.zip"
-
-        # Extract signature from ZIP file we just built
-        ZIP_SIG=$(sign_update "$ZIP_FILE" --ed-key-file /tmp/sparkle_private_key.pem 2>&1 | grep "sparkle:edSignature" | sed 's/.*sparkle:edSignature="//;s/".*//')
-
-        if [ -z "$ZIP_SIG" ]; then
-          echo "❌ Failed to extract signature from built ZIP"
-          exit 1
-        fi
-
-        echo "📋 Built ZIP signature: $ZIP_SIG"
-
-        # Find signature in appcast.xml for this version
-        APPCAST_SIG=$(grep "$VERSION" appcast.xml -A 10 | grep "sparkle:edSignature" | head -1 | sed 's/.*sparkle:edSignature="//;s/".*//')
-
-        if [ -z "$APPCAST_SIG" ]; then
-          echo "❌ Failed to find signature in appcast.xml"
-          exit 1
-        fi
-
-        echo "📋 Appcast signature: $APPCAST_SIG"
-
-        # Compare signatures
-        if [ "$ZIP_SIG" = "$APPCAST_SIG" ]; then
-          echo "✅ Signatures match - proceeding with release"
-        else
-          echo "❌ Signatures do not match!"
-          echo "ZIP signature: $ZIP_SIG"
-          echo "Appcast signature: $APPCAST_SIG"
-          exit 1
-        fi
-
-    - name: Generate appcast (PR only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
       run: |
         echo "📝 Generating appcast with Sparkle..."
 
@@ -586,8 +548,8 @@ jobs:
         echo "📋 Full appcast.xml:"
         cat appcast.xml
 
-    - name: Commit appcast changes (PR only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
+    - name: Commit appcast changes (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "💾 Committing appcast changes..."
 
@@ -599,9 +561,9 @@ jobs:
         if git diff --staged --quiet; then
           echo "⚠️  No changes to commit"
         else
-          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }} [skip ci]"
           git push
-          echo "✅ Appcast committed and pushed"
+          echo "✅ Appcast committed to ${{ github.ref_name }} branch"
         fi
 
     - name: Create DMG (push only)
@@ -831,9 +793,8 @@ jobs:
         echo "**Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
         echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- \`GhostKey-${{ steps.version.outputs.version }}.zip\` (signed)" >> $GITHUB_STEP_SUMMARY
-        echo "- Updated \`appcast.xml\` committed to branch" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Purpose" >> $GITHUB_STEP_SUMMARY
-        echo "This build verifies the release process and updates appcast.xml for testing." >> $GITHUB_STEP_SUMMARY
+        echo "### ℹ️ Note" >> $GITHUB_STEP_SUMMARY
+        echo "The \`appcast.xml\` will be generated and committed when this PR is merged." >> $GITHUB_STEP_SUMMARY
