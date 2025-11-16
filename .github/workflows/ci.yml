@@ -465,13 +465,13 @@ jobs:
         # Add channel tag if not stable
         if [ "$CHANNEL" != "stable" ]; then
           echo "📋 Adding channel tag for $CHANNEL..."
-          # Insert channel tag after sparkle:version in the generated appcast with proper formatting
-          sed -i '' "s|<sparkle:version>|<sparkle:version>\\
+          # Insert channel tag after the sparkle:version closing tag
+          sed -i '' "s|</sparkle:version>|</sparkle:version>\\
             <sparkle:channel>${CHANNEL}</sparkle:channel>|" archives/appcast.xml
         fi
 
         # Check if version already exists in current appcast
-        if [ -f "appcast.xml" ] && grep -q "<sparkle:version>${VERSION}</sparkle:version>" appcast.xml; then
+        if [ -f "appcast.xml" ] && grep -A5 -B5 "${VERSION}" appcast.xml | grep -q "<sparkle:version>"; then
           echo "📋 Version $VERSION already exists in appcast, updating entry..."
 
           # Extract the new item from generated appcast
