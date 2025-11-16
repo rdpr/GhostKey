@@ -7,6 +7,7 @@ struct ManageCodesView: View {
     @State private var showSuccess = false
     @State private var previousCodeCount = 0
     @State private var thresholds = Preferences.thresholds
+    @State private var showClearAllConfirmation = false
     private let store = CodeStore()
     private let refreshTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
     
@@ -45,6 +46,14 @@ struct ManageCodesView: View {
         .onReceive(NotificationCenter.default.publisher(for: .YCPreferencesSaved)) { _ in
             // Update thresholds when preferences change
             thresholds = Preferences.thresholds
+        }
+        .alert("Clear All Codes?", isPresented: $showClearAllConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                clearAllCodes()
+            }
+        } message: {
+            Text("This will permanently delete all \(codes.count) codes. This action cannot be undone.")
         }
     }
     
@@ -132,7 +141,7 @@ struct ManageCodesView: View {
                         .onChange(of: input) { _ in
                             validationError = nil
                             showSuccess = false
-                            validateInput()
+                            validateInputRealtime()
                         }
                     
                     // Fixed height container for validation/success messages
@@ -175,8 +184,28 @@ struct ManageCodesView: View {
     
     private func codesListSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Current Codes")
-                .font(.system(size: 15, weight: .semibold))
+            HStack {
+                Text("Current Codes")
+                    .font(.system(size: 15, weight: .semibold))
+                
+                Spacer()
+                
+                if !codes.isEmpty {
+                    Button(action: {
+                        showClearAllConfirmation = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11))
+                            Text("Clear All")
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.red)
+                    .help("Delete all codes")
+                }
+            }
             
             if codes.isEmpty {
                 VStack(spacing: 12) {
@@ -247,6 +276,26 @@ struct ManageCodesView: View {
     
     // MARK: - Validation
     
+    /// Real-time validation while typing - only checks for non-digit characters
+    private func validateInputRealtime() {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmed.isEmpty else {
+            validationError = nil
+            return
+        }
+        
+        // Check if it's only digits
+        guard trimmed.range(of: "^\\d+$", options: .regularExpression) != nil else {
+            validationError = ValidationError(message: "Code must contain only digits")
+            return
+        }
+        
+        // Don't show length errors while typing
+        validationError = nil
+    }
+    
+    /// Full validation when submitting - checks all requirements
     private func validateInput() {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -319,6 +368,21 @@ struct ManageCodesView: View {
             NSLog("Failed to delete code: \(error)")
             // Revert on error
             refreshCodes()
+        }
+    }
+    
+    private func clearAllCodes() {
+        do {
+            // Write empty file
+            let data = Data()
+            try atomicWrite(data: data, to: Preferences.codesURL)
+            
+            // Refresh to update UI
+            refreshCodes()
+            
+            NSLog("✅ All codes cleared")
+        } catch {
+            NSLog("❌ Failed to clear all codes: \(error)")
         }
     }
 }
