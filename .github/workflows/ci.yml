@@ -1,8 +1,11 @@
 name: CI
 
 on:
-  workflow_dispatch:
-    # Manual trigger for testing builds on feature branches
+  pull_request:
+    branches:
+      - main
+      - beta
+      - dev
   push:
     branches:
       - main
@@ -140,17 +143,12 @@ jobs:
     - name: Check workflow trigger
       id: check_trigger
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "beta" ] || [ "${{ github.ref_name }}" = "dev" ]; then
-            echo "❌ Cannot run workflow_dispatch on release branches"
-            echo "trigger_allowed=false" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Workflow dispatch on feature branch"
-            echo "trigger_allowed=true" >> $GITHUB_OUTPUT
-          fi
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "✅ Pull request build - will build and generate appcast"
+          echo "is_pr=true" >> $GITHUB_OUTPUT
         else
-          echo "✅ Push to release branch"
-          echo "trigger_allowed=true" >> $GITHUB_OUTPUT
+          echo "✅ Push to release branch - will build and release"
+          echo "is_pr=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Skip if tag exists
@@ -159,20 +157,14 @@ jobs:
         echo "::warning::Version v${{ steps.version.outputs.version }} already released. Update VERSION file to create a new release."
         exit 0
 
-    - name: Skip if workflow_dispatch on release branch
-      if: steps.check_trigger.outputs.trigger_allowed == 'false'
-      run: |
-        echo "::error::Cannot run workflow_dispatch on release branches (main, beta, dev)"
-        exit 1
-
     - name: Setup Xcode
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: latest-stable
 
     - name: Install Apple Certificate
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🔐 Installing Developer ID certificate..."
 
@@ -214,7 +206,7 @@ jobs:
         security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
     - name: Install Sparkle CLI tools
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "📥 Installing Sparkle CLI tools..."
         cd /tmp
@@ -228,7 +220,7 @@ jobs:
         sign_update -v || echo "sign_update ready"
 
     - name: Load and verify Sparkle keys
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       id: sparkle_keys
       run: |
         PRIVATE_KEY="${{ secrets.SPARKLE_PRIVATE_KEY }}"
@@ -263,7 +255,7 @@ jobs:
         echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
 
     - name: Build app
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🔨 Building GhostKey..."
 
@@ -305,7 +297,7 @@ jobs:
         fi
 
     - name: Prepare app bundle
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "📦 Preparing app bundle..."
 
@@ -332,7 +324,7 @@ jobs:
         echo "✅ App bundle prepared"
 
     - name: Sign app bundle with Hardened Runtime
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🔐 Signing app bundle with Hardened Runtime..."
 
@@ -368,7 +360,7 @@ jobs:
         echo "✅ App bundle ready for notarization"
 
     - name: Create ZIP archive
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: steps.check_tag.outputs.exists == 'false'
       run: |
         echo "📦 Creating ZIP archive..."
         cd ./dist
@@ -391,7 +383,7 @@ jobs:
         echo "✅ ZIP created: GhostKey-${{ steps.version.outputs.version }}.zip"
 
     - name: Verify appcast signature (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "🔍 Verifying appcast signature matches built app..."
 
@@ -428,8 +420,8 @@ jobs:
           exit 1
         fi
 
-    - name: Generate appcast (workflow_dispatch only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'workflow_dispatch'
+    - name: Generate appcast (PR only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
       run: |
         echo "📝 Generating appcast with Sparkle..."
 
@@ -490,8 +482,8 @@ jobs:
         echo "📋 Latest entry:"
         sed -n '/<item>/,/<\/item>/p' appcast.xml | head -25
 
-    - name: Commit appcast changes (workflow_dispatch only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'workflow_dispatch'
+    - name: Commit appcast changes (PR only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
       run: |
         echo "💾 Committing appcast changes..."
 
@@ -509,7 +501,7 @@ jobs:
         fi
 
     - name: Create DMG (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "📦 Creating DMG..."
 
@@ -539,13 +531,13 @@ jobs:
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
 
     - name: Install create-dmg (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "📥 Installing create-dmg..."
         brew install create-dmg
 
     - name: Notarize DMG (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "🔐 Notarizing DMG with Apple..."
 
@@ -590,7 +582,7 @@ jobs:
         rm -f notarization_log.txt
 
     - name: Staple DMG (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "📎 Stapling notarization ticket to DMG..."
 
@@ -604,7 +596,7 @@ jobs:
         echo "✅ DMG stapled successfully"
 
     - name: Generate checksums (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "🔐 Generating checksums..."
         shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.zip" > "GhostKey-${{ steps.version.outputs.version }}.zip.sha256"
@@ -615,7 +607,7 @@ jobs:
         cat "GhostKey-${{ steps.version.outputs.version }}.dmg.sha256"
 
     - name: Create release notes (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "📝 Generating release notes..."
 
@@ -671,7 +663,7 @@ jobs:
         echo "✅ Release notes generated"
 
     - name: Create Git tag (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "🏷️  Creating tag v${{ steps.version.outputs.version }}..."
         git config user.name "github-actions[bot]"
@@ -684,7 +676,7 @@ jobs:
         echo "✅ Tag created and pushed"
 
     - name: Create GitHub Release (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.version.outputs.version }}
@@ -701,7 +693,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Cleanup keychain
-      if: always() && steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true'
+      if: always() && steps.check_tag.outputs.exists == 'false'
       run: |
         echo "🧹 Cleaning up keychain..."
 
@@ -713,7 +705,7 @@ jobs:
         fi
 
     - name: Release summary (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'push'
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
         echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -727,8 +719,8 @@ jobs:
         echo "- [Release Page](https://github.com/rdpr/GhostKey/releases/tag/v${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
         echo "- [All Releases](https://github.com/rdpr/GhostKey/releases)" >> $GITHUB_STEP_SUMMARY
 
-    - name: Test build summary (workflow_dispatch only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.trigger_allowed == 'true' && github.event_name == 'workflow_dispatch'
+    - name: Test build summary (PR only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
       run: |
         echo "## ✅ Test Build Complete!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
