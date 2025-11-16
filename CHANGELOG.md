@@ -29,6 +29,3 @@
 * implement custom ghost icons and enhance UI/UX ([7279f5d](https://github.com/rdpr/GhostKey/commit/7279f5dc745150899e4b001a2b218f55c341c2af))
 * implement full code signing and notarization (v1.1.0) ([bf50550](https://github.com/rdpr/GhostKey/commit/bf50550539b83477925e099d935dce6a5b5df0e4))
 * implement Sparkle auto-update system ([a02c6c1](https://github.com/rdpr/GhostKey/commit/a02c6c1352b17d88c1d3c5b4d51e41a767cc4035))
-
-
-
