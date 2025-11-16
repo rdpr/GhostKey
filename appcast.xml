@@ -3,13 +3,13 @@
     <channel>
         <item>
             <title>1.0.0-dev.1</title>
-            <pubDate>Sun, 16 Nov 2025 16:50:48 +0000</pubDate>
+            <pubDate>Sun, 16 Nov 2025 16:53:12 +0000</pubDate>
             <link>https://github.com/rdpr/GhostKey</link>
             <sparkle:version>1.0.0-dev.1</sparkle:version>
             <sparkle:channel>dev</sparkle:channel>
             <sparkle:shortVersionString>1.0.0-dev.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-dev.1/GhostKey-1.0.0-dev.1.zip" length="1318433" type="application/octet-stream" sparkle:edSignature="cqLLT7knfzeYjX0HWMjfPUr18cggMMjSrlqIn9KmI/ZIKkiguEYP97ZQgT1CNCANP9Io+Yx714YN1mQcapRoCQ=="/>
+            <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-dev.1/GhostKey-1.0.0-dev.1.zip" length="1318384" type="application/octet-stream" sparkle:edSignature="b9VDKTb5OO6Uiph2QfPR8i59Oc0fEuAxjz6NKq6B2G2PPtReFDhLTMpzCtf69/ivQuYiQwiTFxn1YLZOesrHDA=="/>
         </item>
     </channel>
 </rss>
