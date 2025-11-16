@@ -30,7 +30,7 @@ final class PasteManager {
                 continue
             }
             
-            Thread.sleep(forTimeInterval: 0.02)
+            Thread.sleep(forTimeInterval: 0.01)
             
             // Create and post key up event
             if let keyUp = CGEvent(keyboardEventSource: src, virtualKey: vk, keyDown: false) {
@@ -39,7 +39,7 @@ final class PasteManager {
                 continue
             }
             
-            Thread.sleep(forTimeInterval: 0.03)
+            Thread.sleep(forTimeInterval: 0.01)
         }
         
         // Press Return/Enter if preference is enabled
@@ -50,7 +50,7 @@ final class PasteManager {
                 keyDown.post(tap: .cgSessionEventTap)
             }
             
-            Thread.sleep(forTimeInterval: 0.02)
+            Thread.sleep(forTimeInterval: 0.01)
             
             if let keyUp = CGEvent(keyboardEventSource: src, virtualKey: returnKey, keyDown: false) {
                 keyUp.post(tap: .cgSessionEventTap)
