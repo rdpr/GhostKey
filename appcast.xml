@@ -2,6 +2,15 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>1.0.0</title>
+            <pubDate>Sun, 16 Nov 2025 19:43:52 +0000</pubDate>
+            <link>https://github.com/rdpr/GhostKey</link>
+            <sparkle:version>1.0.0</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0/GhostKey-1.0.0.zip" length="1342902" type="application/octet-stream" sparkle:edSignature="Q+bj4fVmHus77bLGWSM2MhvnOMMU/zX0Rj12wzMGyT5hsI7qoHL6OfGIiiDCUQQ78kx5xKcLzmCGPCOjBDenDA=="/>
+        </item>
+        <item>
             <title>1.0.0-beta.2</title>
             <pubDate>Sun, 16 Nov 2025 19:39:47 +0000</pubDate>
             <link>https://github.com/rdpr/GhostKey</link>
@@ -11,6 +20,7 @@
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-beta.2/GhostKey-1.0.0-beta.2.zip" length="1342950" type="application/octet-stream" sparkle:edSignature="gUlIF1hosAv+nas1i0CZFxCOrpJvWeizIGmFqk2k33im652N81Oo8RlvxI4wB7gQCDRzYBB8bC5blCvAwj+yDQ=="/>
         </item>
+
         <item>
             <title>1.0.0-dev.3</title>
             <pubDate>Sun, 16 Nov 2025 19:19:46 +0000</pubDate>
@@ -21,6 +31,7 @@
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-dev.3/GhostKey-1.0.0-dev.3.zip" length="1342962" type="application/octet-stream" sparkle:edSignature="duHYpFpe9DaEfVE3NAmhcYbgDn7o6GXm5h/uIMPw2wjDouVRyeH+LY8GyskO3oVU5H6RoDBWfygmXWd1Pj0SDw=="/>
         </item>
+
         <item>
             <title>1.0.0-beta.1</title>
             <pubDate>Sun, 16 Nov 2025 19:01:17 +0000</pubDate>
@@ -31,6 +42,7 @@
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-beta.1/GhostKey-1.0.0-beta.1.zip" length="1338387" type="application/octet-stream" sparkle:edSignature="li4SAxgSZ47NgQGGjFHMiKvIR2WacdW4tR2McmuUBnvwo9MrRAQ3JJr/LAo/4BsnL7XfA6BO0HQhQWfgosOYCw=="/>
         </item>
+
         <item>
             <title>1.0.0-dev.2</title>
             <pubDate>Sun, 16 Nov 2025 18:53:01 +0000</pubDate>
@@ -41,6 +53,7 @@
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-dev.2/GhostKey-1.0.0-dev.2.zip" length="1338385" type="application/octet-stream" sparkle:edSignature="z7oDZ4xEfFcDh3rrkmyUJy6+AGa557+J6lNibOn75bTCjWPTsFiYJW2sEgANdJpnIH0EXmxrGiElayVicYSkBg=="/>
         </item>
+
         <item>
             <title>1.0.0-dev.1</title>
             <pubDate>Sun, 16 Nov 2025 18:30:04 +0000</pubDate>
@@ -51,5 +64,6 @@
             <sparkle:minimumSystemVersion>15.1</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/rdpr/GhostKey/releases/download/v1.0.0-dev.1/GhostKey-1.0.0-dev.1.zip" length="1327896" type="application/octet-stream" sparkle:edSignature="GUqrq7vYfgVfkoFHEHybrSPXNmkf0PXyHVo8PhcSeyT3QQUK0AOZ5nyP5lii8k057kMECxHPdt/cPj6lSS+DDQ=="/>
         </item>
+
     </channel>
 </rss>
