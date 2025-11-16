@@ -566,6 +566,12 @@ jobs:
           echo "✅ Appcast committed to ${{ github.ref_name }} branch"
         fi
 
+    - name: Install create-dmg (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📥 Installing create-dmg..."
+        brew install create-dmg
+
     - name: Create DMG (push only)
       if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
       run: |
@@ -595,12 +601,6 @@ jobs:
         fi
 
         echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
-
-    - name: Install create-dmg (push only)
-      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
-      run: |
-        echo "📥 Installing create-dmg..."
-        brew install create-dmg
 
     - name: Notarize DMG (push only)
       if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
