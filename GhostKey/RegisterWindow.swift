@@ -141,7 +141,7 @@ struct ManageCodesView: View {
                         .onChange(of: input) { _ in
                             validationError = nil
                             showSuccess = false
-                            validateInput()
+                            validateInputRealtime()
                         }
                     
                     // Fixed height container for validation/success messages
@@ -276,6 +276,26 @@ struct ManageCodesView: View {
     
     // MARK: - Validation
     
+    /// Real-time validation while typing - only checks for non-digit characters
+    private func validateInputRealtime() {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmed.isEmpty else {
+            validationError = nil
+            return
+        }
+        
+        // Check if it's only digits
+        guard trimmed.range(of: "^\\d+$", options: .regularExpression) != nil else {
+            validationError = ValidationError(message: "Code must contain only digits")
+            return
+        }
+        
+        // Don't show length errors while typing
+        validationError = nil
+    }
+    
+    /// Full validation when submitting - checks all requirements
     private func validateInput() {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         
