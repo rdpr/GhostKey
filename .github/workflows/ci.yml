@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   build-and-release:
+    if: github.actor != 'github-actions[bot]'
     runs-on: macos-15
 
     steps:
@@ -598,7 +599,7 @@ jobs:
         if git diff --staged --quiet; then
           echo "⚠️  No changes to commit"
         else
-          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }} [skip ci]"
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
           git push
           echo "✅ Appcast committed and pushed"
         fi
