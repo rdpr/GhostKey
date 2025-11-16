@@ -470,6 +470,17 @@ jobs:
           perl -i -pe "s|</sparkle:version>|</sparkle:version>\n            <sparkle:channel>${CHANNEL}</sparkle:channel>|" archives/appcast.xml
         fi
 
+        # Remove channel-level title tag (not item titles) from generated appcast
+        echo "📋 Removing channel-level title tag from appcast..."
+        awk '
+          BEGIN { in_item = 0 }
+          /<item>/ { in_item = 1 }
+          /<\/item>/ { in_item = 0; print; next }
+          /<title>.*<\/title>/ && in_item == 0 { next }
+          { print }
+        ' archives/appcast.xml > archives/appcast_no_title.xml
+        mv archives/appcast_no_title.xml archives/appcast.xml
+
         # Check if version already exists in current appcast
         if [ -f "appcast.xml" ] && grep -q "${VERSION}" appcast.xml; then
           echo "📋 Version $VERSION already exists in appcast, updating entry..."
@@ -497,6 +508,16 @@ jobs:
             !in_item { print }
           ' appcast.xml > appcast_temp.xml
 
+          # Remove channel-level title tag (not item titles) from existing appcast
+          awk '
+            BEGIN { in_item = 0 }
+            /<item>/ { in_item = 1 }
+            /<\/item>/ { in_item = 0; print; next }
+            /<title>.*<\/title>/ && in_item == 0 { next }
+            { print }
+          ' appcast_temp.xml > appcast_temp2.xml
+          mv appcast_temp2.xml appcast_temp.xml
+
           # Insert the new item after <channel> tag with proper formatting
           awk '
             /<channel>/ {
@@ -517,6 +538,16 @@ jobs:
 
         elif [ -f "appcast.xml" ] && [ -f "archives/appcast.xml" ]; then
           echo "📋 Adding new version $VERSION to existing appcast..."
+
+          # Remove channel-level title tag (not item titles) from existing appcast
+          awk '
+            BEGIN { in_item = 0 }
+            /<item>/ { in_item = 1 }
+            /<\/item>/ { in_item = 0; print; next }
+            /<title>.*<\/title>/ && in_item == 0 { next }
+            { print }
+          ' appcast.xml > appcast_no_title.xml
+          mv appcast_no_title.xml appcast.xml
 
           # Extract new item from generated appcast
           sed -n '/<item>/,/<\/item>/p' archives/appcast.xml > new_item.xml
