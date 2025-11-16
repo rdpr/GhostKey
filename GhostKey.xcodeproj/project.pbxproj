@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		454D5CFB2EC3B5CD00DD5838 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 454D5CFA2EC3B5CD00DD5838 /* Sparkle */; };
+		457AC4562EC15AAA00B4D5FB /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 457AC4552EC15AAA00B4D5FB /* Media.xcassets */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		451838602EC11E380078F894 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +32,7 @@
 		4518384E2EC11E360078F894 /* GhostKey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GhostKey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4518385F2EC11E380078F894 /* GhostKeyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GhostKeyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		451838692EC11E380078F894 /* GhostKeyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GhostKeyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		457AC4552EC15AAA00B4D5FB /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				454D5CFB2EC3B5CD00DD5838 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,9 +82,11 @@
 		451838452EC11E360078F894 = {
 			isa = PBXGroup;
 			children = (
+				457AC4552EC15AAA00B4D5FB /* Media.xcassets */,
 				451838502EC11E360078F894 /* GhostKey */,
 				451838622EC11E380078F894 /* GhostKeyTests */,
 				4518386C2EC11E380078F894 /* GhostKeyUITests */,
+				454D5CF92EC3B5CD00DD5838 /* Frameworks */,
 				4518384F2EC11E360078F894 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +99,13 @@
 				451838692EC11E380078F894 /* GhostKeyUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		454D5CF92EC3B5CD00DD5838 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +128,7 @@
 			);
 			name = GhostKey;
 			packageProductDependencies = (
+				454D5CFA2EC3B5CD00DD5838 /* Sparkle */,
 			);
 			productName = GhostKey;
 			productReference = 4518384E2EC11E360078F894 /* GhostKey.app */;
@@ -175,6 +192,7 @@
 				TargetAttributes = {
 					4518384D2EC11E360078F894 = {
 						CreatedOnToolsVersion = 16.2;
+						LastSwiftMigration = 1620;
 					};
 					4518385E2EC11E380078F894 = {
 						CreatedOnToolsVersion = 16.2;
@@ -195,6 +213,9 @@
 			);
 			mainGroup = 451838452EC11E360078F894;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				454D5CF82EC3B50500DD5838 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4518384F2EC11E360078F894 /* Products */;
 			projectDirPath = "";
@@ -212,6 +233,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				457AC4562EC15AAA00B4D5FB /* Media.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,6 +296,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -337,6 +360,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -392,22 +416,28 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = GhostKey/GhostKey.entitlements;
+				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"GhostKey/Preview Content\"";
+				DEVELOPMENT_TEAM = GHDGUJ33XJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GhostKey/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "GhostKey Dev";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.rdpr.GhostKey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rdpr.GhostKey.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -417,13 +447,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = GhostKey/GhostKey.entitlements;
+				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"GhostKey/Preview Content\"";
+				DEVELOPMENT_TEAM = GHDGUJ33XJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GhostKey/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GhostKey;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -541,6 +576,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		454D5CF82EC3B50500DD5838 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		454D5CFA2EC3B5CD00DD5838 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 454D5CF82EC3B50500DD5838 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 451838462EC11E360078F894 /* Project object */;
 }
