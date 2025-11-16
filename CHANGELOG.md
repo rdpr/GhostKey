@@ -18,4 +18,3 @@
 - **Multi-Channel Releases**: Separate dev/beta/stable release channels
 - **GitHub Actions CI/CD**: Automated building, signing, notarization, and distribution
 - **Sparkle Integration**: EdDSA-signed update feed with channel support
-
