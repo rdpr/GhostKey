@@ -21,11 +21,51 @@ final class UpdateManager: NSObject {
             userDriverDelegate: nil
         )
         
+        // Configure allowed channels based on user preference
+        updateAllowedChannels()
+        
         NSLog("✅ Sparkle updater initialized")
         
         // Check for updates automatically based on user preference
         if updaterController?.updater.automaticallyChecksForUpdates == true {
             NSLog("📦 Automatic update checks enabled")
+        }
+        
+        // Listen for channel changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleChannelChange),
+            name: .updateChannelChanged,
+            object: nil
+        )
+    }
+    
+    @objc private func handleChannelChange() {
+        updateAllowedChannels()
+        
+        // Note: The new feed URL will be used on the next update check
+        // The feedURLString(for:) delegate method is called each time Sparkle checks for updates
+        NSLog("📡 Channel changed - new feed URL will be used on next update check")
+    }
+    
+    private func updateAllowedChannels() {
+        // The feed URL is dynamically determined in feedURLString(for:)
+        // based on the user's channel preference, so we just log here
+        let channel = Preferences.updateChannel
+        NSLog("📡 Update channel set to: \(channel)")
+        NSLog("📡 Feed will be loaded from: \(feedURL(for: channel))")
+    }
+    
+    private func feedURL(for channel: String) -> String {
+        let baseURL = "https://raw.githubusercontent.com/rdpr/GhostKey"
+        
+        switch channel {
+        case "beta":
+            return "\(baseURL)/beta/appcast.xml"
+        case "dev":
+            return "\(baseURL)/dev/appcast.xml"
+        default: // "stable"
+            return "\(baseURL)/main/appcast.xml"
         }
     }
     
@@ -44,9 +84,10 @@ final class UpdateManager: NSObject {
 
 extension UpdateManager: SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? {
-        // Use the feed URL from Info.plist, or provide a default
-        let feedURL = Bundle.main.infoDictionary?["SUFeedURL"] as? String
-        NSLog("📡 Feed URL: \(feedURL ?? "nil")")
+        // Dynamically determine feed URL based on user's channel preference
+        let channel = Preferences.updateChannel
+        let feedURL = feedURL(for: channel)
+        NSLog("📡 Feed URL for channel '\(channel)': \(feedURL)")
         return feedURL
     }
     

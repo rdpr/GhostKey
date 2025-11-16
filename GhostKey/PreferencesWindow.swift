@@ -12,6 +12,7 @@ struct PreferencesView: View {
     @State private var isRecordingHotkey = false
     @State private var pressReturnAfterPaste = Preferences.pressReturnAfterPaste
     @State private var showCounterInMenuBar = Preferences.showCounterInMenuBar
+    @State private var updateChannel = Preferences.updateChannel
 
     var body: some View {
         ScrollView {
@@ -79,6 +80,32 @@ struct PreferencesView: View {
                             NotificationCenter.default.post(name: .YCPreferencesSaved, object: nil)
                         }
                     ))
+                    
+                    HStack(spacing: 8) {
+                        Text("Update channel")
+                        Picker("", selection: Binding(
+                            get: { updateChannel },
+                            set: { val in
+                                updateChannel = val
+                                UserDefaults.standard.set(val, forKey: "updateChannel")
+                                // Notify UpdateManager to reload allowed channels
+                                NotificationCenter.default.post(name: .updateChannelChanged, object: nil)
+                            }
+                        )) {
+                            Text("Stable").tag("stable")
+                            Text("Beta").tag("beta")
+                            Text("Development").tag("dev")
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 140)
+                        
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        
+                        Text(channelDescription(updateChannel))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
             }
@@ -130,6 +157,19 @@ struct PreferencesView: View {
         d.set(Int(hotkeyKeyCode), forKey: "hotkeyKeyCode")
         d.set(Int(hotkeyModifiers), forKey: "hotkeyModifiers")
         NotificationCenter.default.post(name: .YCPreferencesSaved, object: nil)
+    }
+    
+    private func channelDescription(_ channel: String) -> String {
+        switch channel {
+        case "stable":
+            return "Only stable releases"
+        case "beta":
+            return "Stable + beta releases"
+        case "dev":
+            return "All releases (unstable)"
+        default:
+            return ""
+        }
     }
 }
 
@@ -263,6 +303,7 @@ extension Notification.Name {
     static let YCPreferencesSaved = Notification.Name("YCPreferencesSaved")
     static let disableGlobalHotkey = Notification.Name("DisableGlobalHotkey")
     static let enableGlobalHotkey = Notification.Name("EnableGlobalHotkey")
+    static let updateChannelChanged = Notification.Name("UpdateChannelChanged")
 }
 
 enum PreferencesWindow {

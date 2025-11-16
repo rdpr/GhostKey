@@ -24,7 +24,8 @@ enum Preferences {
             "hotkeyKeyCode": 16, // Y key
             "hotkeyModifiers": Int(defaultModifiers), // 6400 = Ctrl+Option+Cmd
             "pressReturnAfterPaste": true,
-            "showCounterInMenuBar": false // Hide counter by default
+            "showCounterInMenuBar": false, // Hide counter by default
+            "updateChannel": "stable" // Default to stable releases
         ])
         
         NSLog("📝 Registered defaults - hotkey: keyCode=16, modifiers=\(defaultModifiers)")
@@ -54,6 +55,10 @@ enum Preferences {
     
     static var showCounterInMenuBar: Bool {
         defaults.bool(forKey: "showCounterInMenuBar")
+    }
+    
+    static var updateChannel: String {
+        defaults.string(forKey: "updateChannel") ?? "stable"
     }
 }
 
