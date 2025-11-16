@@ -49,11 +49,27 @@ final class UpdateManager: NSObject {
     }
     
     private func updateAllowedChannels() {
-        // The feed URL is dynamically determined in feedURLString(for:)
-        // based on the user's channel preference, so we just log here
         let channel = Preferences.updateChannel
         NSLog("📡 Update channel set to: \(channel)")
         NSLog("📡 Feed will be loaded from: \(feedURL(for: channel))")
+    }
+    
+    private func getAllowedChannels() -> Set<String> {
+        let channel = Preferences.updateChannel
+        
+        switch channel {
+        case "stable":
+            // Stable: only items without a channel tag
+            return []
+        case "beta":
+            // Beta: show beta channel items (+ stable items without channel tag)
+            return ["beta"]
+        case "dev":
+            // Dev: show all channels
+            return ["dev", "beta"]
+        default:
+            return []
+        }
     }
     
     private func feedURL(for channel: String) -> String {
@@ -91,29 +107,38 @@ extension UpdateManager: SPUUpdaterDelegate {
         return feedURL
     }
     
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        let allowedChannels = getAllowedChannels()
+        NSLog("📡 Allowed Sparkle channels: \(allowedChannels.isEmpty ? "[no channel tag / stable]" : Array(allowedChannels).sorted().joined(separator: ", "))")
+        return allowedChannels
+    }
+    
     func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         NSLog("📦 Appcast loaded successfully")
         NSLog("📦 Appcast items count: \(appcast.items.count)")
         
         if let firstItem = appcast.items.first {
             NSLog("📦 Latest item version: \(firstItem.displayVersionString)")
+            NSLog("📦 Latest item channel: \(firstItem.channel ?? "[no channel / stable]")")
             NSLog("📦 Latest item download URL: \(firstItem.fileURL?.absoluteString ?? "nil")")
             
-            // Log signature info
-            if let signature = firstItem.propertiesDictionary["sparkle:edSignature"] as? String {
+            // Log signature info (signature is in the enclosure dict)
+            if let enclosure = firstItem.propertiesDictionary["enclosure"] as? [String: Any],
+               let signature = enclosure["sparkle:edSignature"] as? String {
+                NSLog("🔐 Item has EdDSA signature: \(signature.prefix(50))...")
+            } else if let signature = firstItem.propertiesDictionary["sparkle:edSignature"] as? String {
                 NSLog("🔐 Item has EdDSA signature: \(signature.prefix(50))...")
             } else {
                 NSLog("⚠️ Item missing EdDSA signature!")
             }
-            
-            // Log all properties for debugging
-            NSLog("📋 Item properties: \(firstItem.propertiesDictionary)")
         }
     }
     
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         NSLog("✅ No updates available - running latest version")
-        NSLog("✅ Current version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
+        NSLog("✅ Current version: \(currentVersion)")
+        NSLog("ℹ️  Note: Prereleases (e.g., 1.0.0-beta.1) are considered OLDER than stable releases (e.g., 1.0)")
     }
     
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
