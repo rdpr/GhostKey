@@ -1,0 +1,349 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches:
+      - main
+      - beta
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr-validation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Validate PR title
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          chore
+          ci
+          build
+          revert
+        requireScope: false
+        subjectPattern: ^(?![A-Z]).+$
+        subjectPatternError: |
+          The subject "{subject}" found in the pull request title "{title}"
+          didn't match the configured pattern. Please ensure that the subject
+          doesn't start with an uppercase character.
+        ignoreLabels: |
+          dependencies
+          bot
+        validateSingleCommit: false
+        validateSingleCommitMatchesPrTitle: false
+
+    - name: Comment on invalid PR title
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ❌ Invalid PR Title
+
+          Your PR title doesn't follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+          ### Required Format
+          \`\`\`
+          <type>(<scope>): <description>
+          <type>(<scope>)!: <breaking change description>
+          \`\`\`
+
+          ### Valid Types
+          - **feat**: A new feature
+          - **fix**: A bug fix
+          - **docs**: Documentation changes
+          - **style**: Code style changes (formatting, etc.)
+          - **refactor**: Code refactoring
+          - **perf**: Performance improvements
+          - **test**: Adding or updating tests
+          - **chore**: Maintenance tasks
+          - **ci**: CI/CD changes
+          - **build**: Build system changes
+          - **revert**: Reverting a previous commit
+
+          ### Examples
+          - \`feat: add dark mode support\`
+          - \`fix: resolve crash on startup\`
+          - \`docs: update installation guide\`
+          - \`feat(ui): implement new welcome screen\`
+          - \`fix(auth): correct token validation\`
+          - \`feat!: redesign entire UI (breaking change)\`
+          - \`fix(api)!: change response format (breaking)\`
+
+          ### Breaking Changes
+          - Add \`!\` after the type/scope to indicate a breaking change
+          - Example: \`feat!: breaking change\` or \`feat(scope)!: breaking change\`
+          - The \`!\` is placed before the \`:\`
+
+          ### Rules
+          - Scope is optional (e.g., \`feat: ...\` or \`feat(scope): ...\`)
+          - Description should start with lowercase
+          - Use present tense ("add" not "added")
+          - Be concise and descriptive
+
+          Please update your PR title to match this format. The check will automatically re-run.`
+          })
+
+    - name: Checkout PR branch
+      if: github.event.action != 'edited'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if CHANGELOG was modified
+      if: github.event.action != 'edited'
+      id: check_changelog_modified
+      run: |
+        # Check if CHANGELOG.md was modified in the latest commit
+        if git diff --name-only HEAD~1 HEAD | grep -q "^CHANGELOG.md$"; then
+          echo "📋 CHANGELOG.md was modified in the latest commit"
+          echo "⏭️  Skipping CHANGELOG generation"
+          echo "modified=true" >> $GITHUB_OUTPUT
+        else
+          echo "✅ CHANGELOG.md was not modified, proceeding with generation"
+          echo "modified=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Node.js
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install conventional-changelog
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true'
+      run: npm install -g conventional-changelog-cli
+
+    - name: Determine version and channel
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true'
+      id: version
+      run: |
+        BRANCH="${{ github.base_ref }}"
+        PR_TITLE="${{ github.event.pull_request.title }}"
+
+        echo "🎯 Target branch: $BRANCH"
+        echo "📝 PR Title: $PR_TITLE"
+
+        # Fetch all tags
+        git fetch --tags
+
+        # Find the latest semantic version tag (stable releases only for base version)
+        LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
+
+        if [ -z "$LATEST_STABLE_TAG" ]; then
+          # No stable tags found, use 1.0.0 without bumping
+          BASE_VERSION="1.0.0"
+          echo "📦 No previous releases found, starting from $BASE_VERSION"
+        else
+          # Parse existing version
+          CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
+          echo "📦 Latest stable version: $CURRENT_VERSION"
+
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+          echo "📋 Current: $MAJOR.$MINOR.$PATCH"
+
+          # Determine version bump from PR title
+          # Check for breaking changes (major bump) - must check BEFORE checking for feat!
+          if echo "$PR_TITLE" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
+            BUMP="major"
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+            echo "💥 Breaking change detected (!) → MAJOR bump"
+          # Check for features (minor bump)
+          elif echo "$PR_TITLE" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP="minor"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+            echo "✨ Feature detected → MINOR bump"
+          # Everything else is a patch
+          else
+            BUMP="patch"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$MINOR
+            NEW_PATCH=$((PATCH + 1))
+            echo "🔧 Patch changes → PATCH bump"
+          fi
+
+          BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+          echo "📦 New base version: $BASE_VERSION"
+        fi
+
+        # Apply channel suffix
+        if [ "$BRANCH" = "main" ]; then
+          FULL_VERSION="$BASE_VERSION"
+          CHANNEL="stable"
+          echo "✅ Stable release: $FULL_VERSION"
+        else
+          CHANNEL="$BRANCH"  # "dev" or "beta"
+
+          # Find latest tag for this version+channel
+          LATEST_TAG=$(git tag -l "v${BASE_VERSION}-${CHANNEL}.*" | sort -V | tail -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            COUNTER=1
+            echo "📦 First $CHANNEL release for version $BASE_VERSION"
+          else
+            # Extract counter from tag (e.g., v1.1.0-beta.2 -> 2)
+            COUNTER=$(echo "$LATEST_TAG" | grep -oE '[0-9]+$')
+            COUNTER=$((COUNTER + 1))
+            echo "📦 Found latest tag: $LATEST_TAG"
+            echo "⬆️  Incrementing counter to: $COUNTER"
+          fi
+
+          FULL_VERSION="${BASE_VERSION}-${CHANNEL}.${COUNTER}"
+          echo "✅ $CHANNEL release: $FULL_VERSION"
+        fi
+
+        echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+
+        echo "🚀 Version for CHANGELOG: $FULL_VERSION (base: $BASE_VERSION, channel: $CHANNEL)"
+
+    - name: Generate CHANGELOG entry
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true'
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        CHANNEL="${{ steps.version.outputs.channel }}"
+        REPO_URL="https://github.com/${{ github.repository }}"
+
+        echo "📝 Generating CHANGELOG for $VERSION ($CHANNEL)..."
+
+        # Create a context file for conventional-changelog with version info
+        cat > .changelog-context.json << EOF
+        {
+          "version": "$VERSION",
+          "host": "https://github.com",
+          "owner": "${{ github.repository_owner }}",
+          "repository": "${{ github.event.repository.name }}",
+          "repoUrl": "$REPO_URL",
+          "linkReferences": true
+        }
+        EOF
+
+        # Generate changelog with version and links
+        npx conventional-changelog-cli -p angular \
+          -i CHANGELOG.md \
+          -s \
+          --context .changelog-context.json \
+          --release-count 0
+
+        # Add release link and channel badge to the version header
+        if [ "$CHANNEL" != "stable" ]; then
+          CHANNEL_BADGE="**[$CHANNEL]** "
+        else
+          CHANNEL_BADGE=""
+        fi
+
+        # Escape special characters in version for regex (dots and dashes)
+        VERSION_ESCAPED=$(echo "$VERSION" | sed 's/\./\\./g; s/-/\\-/g')
+
+        echo "🔍 Looking for version header: # ${VERSION}"
+
+        # conventional-changelog generates: # version (date)
+        # We want to change it to: ## [channel badge] [version](release-link) (date)
+
+        # Match "# version (date)" and replace with "## [channel] [version](link) (date)"
+        if grep -q "^# ${VERSION} " CHANGELOG.md; then
+          echo "✅ Found version header: # ${VERSION}"
+          # Replace # version (date) with ## [badge] [version](link) (date)
+          # Capture the date part with \(.*\) and preserve it with \1
+          sed -i.bak "0,/^# ${VERSION_ESCAPED} /s|^# ${VERSION_ESCAPED} \(.*\)|## ${CHANNEL_BADGE}[${VERSION}](${REPO_URL}/releases/tag/v${VERSION}) \1|" CHANGELOG.md
+          echo "✅ Modified to: ## ${CHANNEL_BADGE}[${VERSION}](${REPO_URL}/releases/tag/v${VERSION}) (date)"
+        else
+          echo "⚠️  Version header not found"
+          echo "📋 First 5 lines of CHANGELOG:"
+          head -5 CHANGELOG.md
+        fi
+
+        rm -f CHANGELOG.md.bak
+
+        echo "📋 Modified CHANGELOG (first 5 lines):"
+        head -5 CHANGELOG.md
+
+        # Clean up
+        rm -f .changelog-context.json
+
+        echo "✅ CHANGELOG generated with release link"
+
+    - name: Check for changes
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true'
+      id: check_changes
+      run: |
+        git diff --quiet CHANGELOG.md || echo "changed=true" >> $GITHUB_OUTPUT
+
+    - name: Commit CHANGELOG changes
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true' && steps.check_changes.outputs.changed == 'true'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git add CHANGELOG.md
+        git commit -m "chore: update CHANGELOG for ${{ steps.version.outputs.version }}"
+        git push
+
+        echo "✅ CHANGELOG committed to PR branch"
+
+    - name: Comment on PR
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true' && steps.check_changes.outputs.changed == 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const version = '${{ steps.version.outputs.version }}';
+          const channel = '${{ steps.version.outputs.channel }}';
+
+          let channelEmoji = '🚀';
+          if (channel === 'beta') channelEmoji = '⚠️';
+          if (channel === 'dev') channelEmoji = '🚧';
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ${channelEmoji} CHANGELOG Updated
+
+          The CHANGELOG has been automatically generated for version **\`${version}\`** (\`${channel}\` channel).
+
+          This entry was created from the conventional commit format of your PR title.
+
+          If this is a major release, you may want to manually enhance the CHANGELOG with:
+          - Breaking changes section
+          - Migration guide
+          - Detailed feature descriptions
+
+          The CHANGELOG will be included in the release notes when this PR is merged.`
+          })
+
+    - name: No changes needed
+      if: github.event.action != 'edited' && steps.check_changelog_modified.outputs.modified != 'true' && steps.check_changes.outputs.changed != 'true'
+      run: |
+        echo "ℹ️  CHANGELOG is already up to date"
+        echo "✅ PR title is valid: ${{ github.event.pull_request.title }}"
+        echo "📦 Version: ${{ steps.version.outputs.version }}"

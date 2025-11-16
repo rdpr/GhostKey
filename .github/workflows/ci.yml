@@ -1,0 +1,800 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - beta
+      - dev
+  push:
+    branches:
+      - main
+      - beta
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-15
+
+    steps:
+    - name: Checkout PR branch
+      if: github.event_name == 'pull_request'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Checkout push branch
+      if: github.event_name == 'push'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Determine version and channel
+      id: version
+      run: |
+        # For PR builds, use the target branch; for push builds, use the current branch
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          BRANCH="${{ github.base_ref }}"
+        else
+          BRANCH="${{ github.ref_name }}"
+        fi
+
+        echo "🎯 Branch: $BRANCH"
+
+        # Fetch all tags
+        git fetch --tags
+
+        # Find the latest semantic version tag (stable releases only for base version)
+        LATEST_STABLE_TAG=$(git tag -l "v*.*.*" | grep -v "-" | sort -V | tail -1)
+
+        if [ -z "$LATEST_STABLE_TAG" ]; then
+          # No stable tags found, use 1.0.0 without bumping
+          BASE_VERSION="1.0.0"
+          echo "📦 No previous releases found, starting from $BASE_VERSION"
+        else
+          # Parse existing version
+          CURRENT_VERSION="${LATEST_STABLE_TAG#v}"
+          echo "📦 Latest stable version: $CURRENT_VERSION"
+
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+          echo "📋 Current: $MAJOR.$MINOR.$PATCH"
+
+          # Determine version bump by analyzing commit messages since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            # No tags at all, get all commits
+            COMMITS=$(git log --pretty=format:"%s" | head -50)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s")
+          fi
+
+          echo "📝 Analyzing commits for version bump..."
+
+          # Check for breaking changes (major bump) - must check BEFORE checking for feat!
+          if echo "$COMMITS" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
+            BUMP="major"
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+            echo "💥 Breaking change detected (!) → MAJOR bump"
+          # Check for features (minor bump)
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP="minor"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+            echo "✨ Feature detected → MINOR bump"
+          # Everything else is a patch
+          else
+            BUMP="patch"
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$MINOR
+            NEW_PATCH=$((PATCH + 1))
+            echo "🔧 Patch changes → PATCH bump"
+          fi
+
+          BASE_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+          echo "📦 New base version: $BASE_VERSION"
+        fi
+
+        # Apply channel suffix
+        if [ "$BRANCH" = "main" ]; then
+          FULL_VERSION="$BASE_VERSION"
+          CHANNEL="stable"
+          IS_PRERELEASE=false
+          echo "✅ Stable release: $FULL_VERSION"
+        else
+          CHANNEL="$BRANCH"  # "dev" or "beta"
+
+          # Find latest tag for this version+channel
+          LATEST_TAG=$(git tag -l "v${BASE_VERSION}-${CHANNEL}.*" | sort -V | tail -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            COUNTER=1
+            echo "📦 First $CHANNEL release for version $BASE_VERSION"
+          else
+            # Extract counter from tag (e.g., v1.1.0-beta.2 -> 2)
+            COUNTER=$(echo "$LATEST_TAG" | grep -oE '[0-9]+$')
+            COUNTER=$((COUNTER + 1))
+            echo "📦 Found latest tag: $LATEST_TAG"
+            echo "⬆️  Incrementing counter to: $COUNTER"
+          fi
+
+          FULL_VERSION="${BASE_VERSION}-${CHANNEL}.${COUNTER}"
+          IS_PRERELEASE=true
+          echo "✅ $CHANNEL release: $FULL_VERSION"
+        fi
+
+        echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+        echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+        echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+        echo "🚀 Building version $FULL_VERSION (base: $BASE_VERSION, channel: $CHANNEL)"
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "⚠️  Tag v${{ steps.version.outputs.version }} already exists"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "✅ Tag v${{ steps.version.outputs.version }} is new"
+        fi
+
+    - name: Check workflow trigger
+      id: check_trigger
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "✅ Pull request build - will build and generate appcast"
+          echo "is_pr=true" >> $GITHUB_OUTPUT
+        else
+          echo "✅ Push to release branch - will build and release"
+          echo "is_pr=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Skip if tag exists
+      if: steps.check_tag.outputs.exists == 'true'
+      run: |
+        echo "::warning::Version v${{ steps.version.outputs.version }} already released. Update VERSION file to create a new release."
+        exit 0
+
+    - name: Setup Xcode
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Install Apple Certificate
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔐 Installing Developer ID certificate..."
+
+        # Decode certificate
+        echo "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+
+        # Create temporary keychain
+        KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+        KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+        # Import certificate to keychain
+        security import certificate.p12 \
+          -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" \
+          -k "$KEYCHAIN_PATH" \
+          -T /usr/bin/codesign \
+          -T /usr/bin/security
+
+        # Set keychain as default
+        security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+        security default-keychain -s "$KEYCHAIN_PATH"
+
+        # Enable codesigning from a non user interactive shell
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+        # Clean up certificate file
+        rm -f certificate.p12
+
+        # Store keychain path for cleanup
+        echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+        echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
+
+        echo "✅ Certificate installed successfully"
+
+        # Verify certificate
+        security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+    - name: Install Sparkle CLI tools
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📥 Installing Sparkle CLI tools..."
+        cd /tmp
+        curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o sparkle.tar.xz
+        tar -xf sparkle.tar.xz
+        sudo cp -f bin/sign_update /usr/local/bin/
+        sudo cp -f bin/generate_appcast /usr/local/bin/
+        echo "✅ Sparkle CLI tools installed"
+        which sign_update
+        which generate_appcast
+        sign_update -v || echo "sign_update ready"
+
+    - name: Load and verify Sparkle keys
+      if: steps.check_tag.outputs.exists == 'false'
+      id: sparkle_keys
+      run: |
+        PRIVATE_KEY="${{ secrets.SPARKLE_PRIVATE_KEY }}"
+        PUBLIC_KEY_IN_PLIST=$(grep -A 1 "SUPublicEDKey" GhostKey/Info.plist | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | tr -d '[:space:]')
+
+        echo "🔍 Public key in Info.plist: $PUBLIC_KEY_IN_PLIST"
+        echo "🔍 Private key length: ${#PRIVATE_KEY}"
+
+        # Create a test file to verify the key pair works
+        echo "test content" > /tmp/test.txt
+        zip /tmp/test.zip /tmp/test.txt
+
+        # Write private key to file
+        echo "$PRIVATE_KEY" > /tmp/test_key.pem
+        chmod 600 /tmp/test_key.pem
+
+        # Try to sign the test file
+        echo "🔐 Testing key pair with test file..."
+        TEST_SIG=$(sign_update /tmp/test.zip --ed-key-file /tmp/test_key.pem 2>&1)
+        echo "🔍 Test signature output: $TEST_SIG"
+
+        if echo "$TEST_SIG" | grep -q "sparkle:edSignature"; then
+          echo "✅ Private key can sign files"
+        else
+          echo "❌ Private key failed to sign test file"
+          echo "Output: $TEST_SIG"
+        fi
+
+        # Clean up
+        rm -f /tmp/test.txt /tmp/test.zip /tmp/test_key.pem
+
+        echo "private_key=$PRIVATE_KEY" >> $GITHUB_OUTPUT
+
+    - name: Build app
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔨 Building GhostKey..."
+
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Set version in Info.plist before building
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" GhostKey/Info.plist 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" GhostKey/Info.plist
+
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" GhostKey/Info.plist 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" GhostKey/Info.plist
+
+        echo "✅ Version set to $VERSION in Info.plist"
+
+        xcodebuild clean build \
+          -project GhostKey.xcodeproj \
+          -scheme GhostKey \
+          -configuration Release \
+          -derivedDataPath ./build \
+          CODE_SIGN_STYLE=Manual \
+          CODE_SIGN_IDENTITY="${{ vars.APPLE_CODE_SIGN_IDENTITY }}" \
+          DEVELOPMENT_TEAM="${{ vars.APPLE_TEAM_ID }}" \
+          MARKETING_VERSION="$VERSION" \
+          CURRENT_PROJECT_VERSION="$VERSION"
+
+        echo "✅ Build complete"
+
+        # Verify version in built app
+        echo "🔍 Verifying version in built app..."
+        BUILT_APP=$(find ./build -name "GhostKey.app" -type d | head -n 1)
+        if [ -n "$BUILT_APP" ]; then
+          BUILT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$BUILT_APP/Contents/Info.plist" 2>/dev/null || echo "not found")
+          echo "Built app version: $BUILT_VERSION"
+          if [ "$BUILT_VERSION" != "$VERSION" ]; then
+            echo "⚠️  Version mismatch! Expected $VERSION, got $BUILT_VERSION"
+          else
+            echo "✅ Version verified in built app"
+          fi
+        fi
+
+    - name: Prepare app bundle
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📦 Preparing app bundle..."
+
+        # Find the built app
+        APP_PATH=$(find ./build -name "GhostKey.app" -type d | head -n 1)
+
+        if [ -z "$APP_PATH" ]; then
+          echo "❌ GhostKey.app not found"
+          exit 1
+        fi
+
+        echo "Found app at: $APP_PATH"
+
+        # Create distribution directory
+        mkdir -p ./dist
+
+        # Copy app to distribution directory
+        cp -R "$APP_PATH" ./dist/GhostKey.app
+
+        # Ensure executable has correct permissions
+        echo "🔧 Setting executable permissions..."
+        chmod +x ./dist/GhostKey.app/Contents/MacOS/GhostKey
+
+        echo "✅ App bundle prepared"
+
+    - name: Sign app bundle with Hardened Runtime
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🔐 Signing app bundle with Hardened Runtime..."
+
+        # Sign with deep signing to cover all nested binaries (Sparkle framework, etc.)
+        codesign --sign "${{ vars.APPLE_CODE_SIGN_IDENTITY }}" \
+          --deep \
+          --force \
+          --options runtime \
+          --timestamp \
+          --verbose \
+          ./dist/GhostKey.app
+
+        echo "✅ App signed with Hardened Runtime"
+
+        # Verify code signature
+        echo "🔍 Verifying code signature..."
+        codesign -dv --verbose=4 ./dist/GhostKey.app 2>&1
+        codesign --verify --deep --strict --verbose=2 ./dist/GhostKey.app
+
+        echo "✅ Signature verified"
+
+        # Verify bundle structure
+        echo "📋 Verifying bundle structure..."
+        if [ ! -f "./dist/GhostKey.app/Contents/MacOS/GhostKey" ]; then
+          echo "❌ Executable not found!"
+          exit 1
+        fi
+        if [ ! -f "./dist/GhostKey.app/Contents/Info.plist" ]; then
+          echo "❌ Info.plist not found!"
+          exit 1
+        fi
+
+        echo "✅ App bundle ready for notarization"
+
+    - name: Create ZIP archive
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "📦 Creating ZIP archive..."
+        cd ./dist
+
+        # Use ditto instead of zip for better compatibility with macOS
+        cd ..
+        ditto -c -k --sequesterRsrc --keepParent ./dist/GhostKey.app "GhostKey-${{ steps.version.outputs.version }}.zip"
+
+        # Verify ZIP was created
+        if [ ! -f "GhostKey-${{ steps.version.outputs.version }}.zip" ]; then
+          echo "❌ ZIP creation failed"
+          exit 1
+        fi
+
+        # Calculate and store SHA256 before signing
+        SHA_BEFORE=$(shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.zip" | awk '{print $1}')
+        echo "🔍 ZIP SHA256 (before signing): $SHA_BEFORE"
+        echo "$SHA_BEFORE" > zip_sha_before.txt
+
+        echo "✅ ZIP created: GhostKey-${{ steps.version.outputs.version }}.zip"
+
+    - name: Generate appcast (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📝 Generating appcast with Sparkle..."
+
+        VERSION="${{ steps.version.outputs.version }}"
+        CHANNEL="${{ steps.version.outputs.channel }}"
+        ZIP_FILE="GhostKey-${VERSION}.zip"
+        PRIVATE_KEY="${{ steps.sparkle_keys.outputs.private_key }}"
+        KEY_FILE="/tmp/sparkle_private_key.pem"
+
+        # Write private key to temporary file
+        echo -n "$PRIVATE_KEY" > "$KEY_FILE"
+        chmod 600 "$KEY_FILE"
+
+        # Create archives directory for generate_appcast
+        mkdir -p archives
+        cp "$ZIP_FILE" archives/
+
+        # Generate appcast using Sparkle's tool
+        echo "🔐 Running generate_appcast..."
+        generate_appcast \
+          --ed-key-file "$KEY_FILE" \
+          --download-url-prefix "https://github.com/rdpr/GhostKey/releases/download/v${VERSION}/" \
+          --link "https://github.com/rdpr/GhostKey" \
+          --release-notes-url-prefix "https://github.com/rdpr/GhostKey/releases/tag/v" \
+          archives
+
+        # Add channel tag if not stable
+        if [ "$CHANNEL" != "stable" ]; then
+          echo "📋 Adding channel tag for $CHANNEL..."
+          # Insert channel tag after the sparkle:version closing tag with proper indentation
+          # Use perl for reliable multiline replacement with exact whitespace control
+          perl -i -pe "s|</sparkle:version>|</sparkle:version>\n            <sparkle:channel>${CHANNEL}</sparkle:channel>|" archives/appcast.xml
+        fi
+
+        # Remove channel-level title tag (not item titles) from generated appcast
+        echo "📋 Removing channel-level title tag from appcast..."
+        awk '
+          BEGIN { in_item = 0 }
+          /<item>/ { in_item = 1 }
+          /<\/item>/ { in_item = 0; print; next }
+          /<title>.*<\/title>/ && in_item == 0 { next }
+          { print }
+        ' archives/appcast.xml > archives/appcast_no_title.xml
+        mv archives/appcast_no_title.xml archives/appcast.xml
+
+        # Check if version already exists in current appcast
+        if [ -f "appcast.xml" ] && grep -q "${VERSION}" appcast.xml; then
+          echo "📋 Version $VERSION already exists in appcast, updating entry..."
+
+          # Extract the new item from generated appcast
+          sed -n '/<item>/,/<\/item>/p' archives/appcast.xml > new_item.xml
+
+          # Remove the entire item containing this version
+          awk -v version="$VERSION" '
+            BEGIN { in_item = 0; skip_item = 0 }
+            /<item>/ { in_item = 1; item_content = $0 "\n"; next }
+            in_item {
+              item_content = item_content $0 "\n"
+              if ($0 ~ "<sparkle:version>" version "</sparkle:version>") {
+                skip_item = 1
+              }
+              if (/<\/item>/) {
+                if (!skip_item) print item_content
+                in_item = 0
+                skip_item = 0
+                item_content = ""
+                next
+              }
+            }
+            !in_item { print }
+          ' appcast.xml > appcast_temp.xml
+
+          # Remove channel-level title tag (not item titles) from existing appcast
+          awk '
+            BEGIN { in_item = 0 }
+            /<item>/ { in_item = 1 }
+            /<\/item>/ { in_item = 0; print; next }
+            /<title>.*<\/title>/ && in_item == 0 { next }
+            { print }
+          ' appcast_temp.xml > appcast_temp2.xml
+          mv appcast_temp2.xml appcast_temp.xml
+
+          # Insert the new item after <channel> tag with proper formatting
+          awk '
+            /<channel>/ {
+              print
+              while ((getline line < "new_item.xml") > 0) {
+                print line
+              }
+              close("new_item.xml")
+              next
+            }
+            { print }
+          ' appcast_temp.xml > appcast_final.xml
+          
+          mv appcast_final.xml appcast_temp.xml
+
+          mv appcast_temp.xml appcast.xml
+          rm -f new_item.xml
+
+        elif [ -f "appcast.xml" ] && [ -f "archives/appcast.xml" ]; then
+          echo "📋 Adding new version $VERSION to existing appcast..."
+
+          # Remove channel-level title tag (not item titles) from existing appcast
+          awk '
+            BEGIN { in_item = 0 }
+            /<item>/ { in_item = 1 }
+            /<\/item>/ { in_item = 0; print; next }
+            /<title>.*<\/title>/ && in_item == 0 { next }
+            { print }
+          ' appcast.xml > appcast_no_title.xml
+          mv appcast_no_title.xml appcast.xml
+
+          # Extract new item from generated appcast
+          sed -n '/<item>/,/<\/item>/p' archives/appcast.xml > new_item.xml
+
+          # Insert new item into existing appcast (after <channel>) with proper formatting
+          awk '
+            /<channel>/ {
+              print
+              while ((getline line < "new_item.xml") > 0) {
+                print line
+              }
+              close("new_item.xml")
+              next
+            }
+            { print }
+          ' appcast.xml > appcast_new.xml
+          mv appcast_new.xml appcast.xml
+          rm -f new_item.xml
+
+        elif [ -f "archives/appcast.xml" ]; then
+          echo "📋 Creating new appcast with version $VERSION..."
+          mv archives/appcast.xml appcast.xml
+        else
+          echo "❌ Failed to generate appcast"
+          exit 1
+        fi
+
+        # Clean up
+        rm -rf archives "$KEY_FILE"
+
+        echo "✅ Appcast updated (channel: $CHANNEL)"
+        echo "📋 Latest entry:"
+        sed -n '/<item>/,/<\/item>/p' appcast.xml | head -25
+        echo ""
+        echo "📋 Full appcast.xml:"
+        cat appcast.xml
+
+    - name: Commit appcast changes (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "💾 Committing appcast changes..."
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git add appcast.xml
+
+        if git diff --staged --quiet; then
+          echo "⚠️  No changes to commit"
+        else
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }} [skip ci]"
+          git push
+          echo "✅ Appcast committed to ${{ github.ref_name }} branch"
+        fi
+
+    - name: Install create-dmg (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📥 Installing create-dmg..."
+        brew install create-dmg
+
+    - name: Create DMG (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📦 Creating DMG..."
+
+        # Create DMG with nice window and background
+        create-dmg \
+          --volname "GhostKey" \
+          --volicon "./Media.xcassets/AppIcon.appiconset/GhostKey-512.png" \
+          --window-pos 200 120 \
+          --window-size 600 400 \
+          --icon-size 100 \
+          --icon "GhostKey.app" 175 190 \
+          --hide-extension "GhostKey.app" \
+          --app-drop-link 425 190 \
+          --no-internet-enable \
+          "GhostKey-${{ steps.version.outputs.version }}.dmg" \
+          "./dist/GhostKey.app" || true
+
+        # Fallback: If create-dmg fails, create a simple DMG
+        if [ ! -f "GhostKey-${{ steps.version.outputs.version }}.dmg" ]; then
+          echo "⚠️  create-dmg failed, creating simple DMG..."
+          hdiutil create -volname "GhostKey" \
+            -srcfolder "./dist/GhostKey.app" \
+            -ov -format UDZO \
+            "GhostKey-${{ steps.version.outputs.version }}.dmg"
+        fi
+
+        echo "✅ DMG created: GhostKey-${{ steps.version.outputs.version }}.dmg"
+
+    - name: Notarize DMG (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "🔐 Notarizing DMG with Apple..."
+
+        DMG_FILE="GhostKey-${{ steps.version.outputs.version }}.dmg"
+
+        # Write API key to temporary file
+        API_KEY_FILE="/tmp/api_key.p8"
+        echo "${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}" > "$API_KEY_FILE"
+        chmod 600 "$API_KEY_FILE"
+
+        # Store credentials for notarytool
+        xcrun notarytool store-credentials "notarytool-profile" \
+          --key "$API_KEY_FILE" \
+          --key-id "${{ vars.APPLE_APP_STORE_CONNECT_API_KEY_ID }}" \
+          --issuer "${{ vars.APPLE_APP_STORE_CONNECT_API_ISSUER_ID }}"
+
+        rm -f "$API_KEY_FILE"
+
+        echo "✅ Credentials stored"
+
+        # Submit for notarization
+        echo "📤 Submitting DMG for notarization..."
+        xcrun notarytool submit "$DMG_FILE" \
+          --keychain-profile "notarytool-profile" \
+          --wait \
+          --timeout 30m \
+          2>&1 | tee notarization_log.txt
+
+        # Extract submission ID for debugging
+        SUBMISSION_ID=$(grep "id:" notarization_log.txt | head -1 | awk '{print $2}')
+        echo "📋 Submission ID: $SUBMISSION_ID"
+
+        # Check status
+        if grep -q "status: Accepted" notarization_log.txt; then
+          echo "✅ Notarization successful"
+        else
+          echo "❌ Notarization failed"
+          xcrun notarytool log "$SUBMISSION_ID" --keychain-profile "notarytool-profile" || true
+          exit 1
+        fi
+
+        rm -f notarization_log.txt
+
+    - name: Staple DMG (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📎 Stapling notarization ticket to DMG..."
+
+        DMG_FILE="GhostKey-${{ steps.version.outputs.version }}.dmg"
+
+        xcrun stapler staple "$DMG_FILE"
+
+        # Verify stapling
+        xcrun stapler validate "$DMG_FILE"
+
+        echo "✅ DMG stapled successfully"
+
+    - name: Generate checksums (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "🔐 Generating checksums..."
+        shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.zip" > "GhostKey-${{ steps.version.outputs.version }}.zip.sha256"
+        shasum -a 256 "GhostKey-${{ steps.version.outputs.version }}.dmg" > "GhostKey-${{ steps.version.outputs.version }}.dmg.sha256"
+
+        echo "📋 Checksums:"
+        cat "GhostKey-${{ steps.version.outputs.version }}.zip.sha256"
+        cat "GhostKey-${{ steps.version.outputs.version }}.dmg.sha256"
+
+    - name: Create release notes (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "📝 Generating release notes..."
+
+        CHANNEL="${{ steps.version.outputs.channel }}"
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Add channel-specific header
+        if [ "$CHANNEL" = "dev" ]; then
+          HEADER="## 🚧 GhostKey v${VERSION} (Development Release)"
+          WARNING="⚠️ **Development Release**: This is an early development build. It may contain bugs and incomplete features. Use at your own risk!"
+        elif [ "$CHANNEL" = "beta" ]; then
+          HEADER="## ⚠️ GhostKey v${VERSION} (Beta Release)"
+          WARNING="⚠️ **Beta Release**: This is a pre-release version for testing. Please report any issues you encounter."
+        else
+          HEADER="## GhostKey v${VERSION}"
+          WARNING=""
+        fi
+
+        cat > release_notes.md << EOF
+        ${HEADER}
+
+        ${WARNING}
+
+        ### 📦 Installation
+
+        Choose one of the following:
+
+        1. **DMG (Recommended)**: Download \`GhostKey-${VERSION}.dmg\`, open it, and drag GhostKey to your Applications folder
+        2. **ZIP**: Download \`GhostKey-${VERSION}.zip\`, extract it, and move GhostKey.app to your Applications folder
+
+        **This app is code-signed and notarized by Apple.** You can open it directly—no Terminal commands needed!
+
+        ### ✅ Checksums
+
+        Verify your download:
+
+        \`\`\`
+        $(cat GhostKey-${VERSION}.zip.sha256)
+        $(cat GhostKey-${VERSION}.dmg.sha256)
+        \`\`\`
+
+        ### 📋 What's New
+
+        See [CHANGELOG.md](https://github.com/rdpr/GhostKey/releases/tag/v${VERSION}) for detailed changes.
+
+        ---
+
+        **Requirements**: macOS 12.0 (Monterey) or later
+
+        **Permissions**: Accessibility access required for typing codes (you'll be prompted on first use)
+        EOF
+
+        echo "✅ Release notes generated"
+
+    - name: Create Git tag (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "🏷️  Creating tag v${{ steps.version.outputs.version }}..."
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+
+        # Push tag using HTTPS with token
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "v${{ steps.version.outputs.version }}"
+
+        echo "✅ Tag created and pushed"
+
+    - name: Create GitHub Release (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: v${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ steps.version.outputs.is_prerelease }}
+        files: |
+          GhostKey-${{ steps.version.outputs.version }}.zip
+          GhostKey-${{ steps.version.outputs.version }}.zip.sha256
+          GhostKey-${{ steps.version.outputs.version }}.dmg
+          GhostKey-${{ steps.version.outputs.version }}.dmg.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Cleanup keychain
+      if: always() && steps.check_tag.outputs.exists == 'false'
+      run: |
+        echo "🧹 Cleaning up keychain..."
+
+        if [ -n "$KEYCHAIN_PATH" ]; then
+          security delete-keychain "$KEYCHAIN_PATH" || true
+          echo "✅ Keychain deleted"
+        else
+          echo "⚠️  No keychain to clean up"
+        fi
+
+    - name: Release summary (push only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'false'
+      run: |
+        echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- \`GhostKey-${{ steps.version.outputs.version }}.dmg\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`GhostKey-${{ steps.version.outputs.version }}.zip\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Release Page](https://github.com/rdpr/GhostKey/releases/tag/v${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [All Releases](https://github.com/rdpr/GhostKey/releases)" >> $GITHUB_STEP_SUMMARY
+
+    - name: Test build summary (PR only)
+      if: steps.check_tag.outputs.exists == 'false' && steps.check_trigger.outputs.is_pr == 'true'
+      run: |
+        echo "## ✅ Test Build Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- \`GhostKey-${{ steps.version.outputs.version }}.zip\` (signed)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ℹ️ Note" >> $GITHUB_STEP_SUMMARY
+        echo "The \`appcast.xml\` will be generated and committed when this PR is merged." >> $GITHUB_STEP_SUMMARY
